@@ -18,6 +18,7 @@ import StatsScreen           from './src/screens/StatsScreen';
 import TimerScreen           from './src/screens/TimerScreen';
 import AchievementsScreen    from './src/screens/AchievementsScreen';
 import SettingsScreen        from './src/screens/SettingsScreen';
+import PaymentScreen         from './src/screens/PaymentScreen';
 
 import { ThemeProvider, useTheme } from './src/theme/ThemeContext';
 import { authAPI, getSavedUser }   from './src/services/api';
@@ -67,6 +68,7 @@ function StatsStack()        { const { colors } = useTheme(); return <Stack.Navi
 function TimerStack()        { const { colors } = useTheme(); return <Stack.Navigator screenOptions={buildScreenOptions(colors)}><Stack.Screen name="Timer"        component={TimerScreen}        options={{ headerShown: false }} /></Stack.Navigator>; }
 function AchievementsStack() { const { colors } = useTheme(); return <Stack.Navigator screenOptions={buildScreenOptions(colors)}><Stack.Screen name="Achievements" component={AchievementsScreen} options={{ headerShown: false }} /></Stack.Navigator>; }
 function SettingsStack()     { const { colors } = useTheme(); return <Stack.Navigator screenOptions={buildScreenOptions(colors)}><Stack.Screen name="Settings"     component={SettingsScreen}     options={{ headerShown: false }} /></Stack.Navigator>; }
+function PaymentStack()      { const { colors } = useTheme(); return <Stack.Navigator screenOptions={buildScreenOptions(colors)}><Stack.Screen name="Payment"      component={PaymentScreen}      options={{ headerShown: false }} /></Stack.Navigator>; }
 
 function MainApp() {
   const { colors } = useTheme();
@@ -89,6 +91,7 @@ function MainApp() {
       <Tab.Screen name="StatsTab"        component={StatsStack}        options={{ tabBarLabel: 'Stats' }} />
       <Tab.Screen name="TimerTab"        component={TimerStack}        options={{ tabBarLabel: 'Timer' }} />
       <Tab.Screen name="AchievementsTab" component={AchievementsStack} options={{ tabBarLabel: 'Logros' }} />
+      <Tab.Screen name="PaymentTab"      component={PaymentStack}      options={{ tabBarLabel: 'Mi cuota' }} />
       <Tab.Screen name="SettingsTab"     component={SettingsStack}     options={{ tabBarLabel: 'Ajustes' }} />
     </Tab.Navigator>
   );
