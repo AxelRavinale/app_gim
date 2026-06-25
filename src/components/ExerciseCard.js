@@ -1,215 +1,93 @@
-// ExerciseCard.js
-// Componente reutilizable que muestra la tarjeta de un ejercicio en la lista principal.
-//
-// ¿Qué es un "componente"?
-// Es como una pieza de LEGO. Lo diseñás una vez y lo podés usar
-// en cualquier parte de la app pasándole diferentes datos (props).
-//
-// ¿Qué son "props"?
-// Son los parámetros del componente. Como los parámetros de una función,
-// pero para componentes visuales. Le dicen qué datos mostrar.
-
 import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
-import colors from '../theme/colors';
-import { calculateStats, formatDate } from '../storage/exercises';
+import { useTheme } from '../theme/ThemeContext';
+import { calculateStats, formatDate, TRACKING_TYPES } from '../storage/exercises';
 
-// El componente recibe estas props:
-// - exercise: el objeto completo del ejercicio
-// - onPress: función que se ejecuta cuando el usuario toca la tarjeta
 export default function ExerciseCard({ exercise, onPress }) {
-  // Calculamos las estadísticas a partir de los sets del ejercicio
-  const { maxWeight, minWeight, lastTen } = calculateStats(exercise.sets);
-
-  // Buscamos el color del badge según el grupo muscular.
-  // Si no está en la lista, usamos el color de 'Otro'.
+  const { colors } = useTheme();
+  const s = makeStyles(colors);
+  const { maxWeight, minWeight, maxDuration, minDuration, lastTen } = calculateStats(exercise.sets, exercise.trackingType);
   const muscleColor = colors.muscleColors[exercise.muscleGroup] || colors.muscleColors['Otro'];
-
-  // Obtenemos el set más reciente para mostrar "Último registro"
   const lastSet = lastTen.length > 0 ? lastTen[0] : null;
+  const isCardio = exercise.trackingType === TRACKING_TYPES.TIME;
+
+  function getLastSessionSummary() {
+    if (!lastSet) return null;
+    if (isCardio) {
+      let text = `${lastSet.duration}min`;
+      if (lastSet.distance) text += ` · ${lastSet.distance}km`;
+      return { label: 'Última sesión', text };
+    }
+    const series = lastSet.series || [];
+    if (series.length === 0) return null;
+    const allSameWeight = series.every(s => s.weight === series[0].weight);
+    const allSameReps = series.every(s => s.reps === series[0].reps);
+    if (allSameWeight && allSameReps) {
+      return { label: 'Último registro', text: `${series.length} × ${series[0].weight}kg · ${series[0].reps} reps` };
+    }
+    return { label: 'Último registro', text: series.map(sr => `S${sr.serieNumber}: ${sr.weight}kg×${sr.reps}`).join('  ') };
+  }
+
+  const lastSummary = getLastSessionSummary();
 
   return (
-    // TouchableOpacity es un componente que puede detectar toques.
-    // Cuando el usuario toca, llama a la función onPress que le pasamos.
-    // "activeOpacity" controla cuánto se oscurece al tocar (0=transparente, 1=sin cambio)
-    <TouchableOpacity style={styles.card} onPress={onPress} activeOpacity={0.7}>
-
-      {/* Fila superior: nombre del ejercicio + badge del grupo muscular */}
-      <View style={styles.topRow}>
-        <Text style={styles.name} numberOfLines={1}>{exercise.name}</Text>
-        <View style={[styles.muscleBadge, { backgroundColor: muscleColor.bg }]}>
-          <Text style={[styles.muscleText, { color: muscleColor.text }]}>
-            {exercise.muscleGroup}
-          </Text>
+    <TouchableOpacity style={s.card} onPress={onPress} activeOpacity={0.7}>
+      <View style={s.topRow}>
+        <Text style={s.name} numberOfLines={1}>{exercise.name}</Text>
+        <View style={[s.muscleBadge, { backgroundColor: muscleColor.bg }]}>
+          <Text style={[s.muscleText, { color: muscleColor.text }]}>{exercise.muscleGroup}</Text>
         </View>
       </View>
-
-      {/* Última sesión */}
-      {lastSet && (
-        <Text style={styles.lastDate}>
-          Último registro: {formatDate(lastSet.date)}
-        </Text>
-      )}
-
-      {exercise.sets.length === 0 && (
-        <Text style={styles.lastDate}>Sin registros aún</Text>
-      )}
-
-      {/* Fila de estadísticas: Máx / Mín / Último peso */}
-      <View style={styles.statsRow}>
-        <StatChip
-          label="Máximo"
-          value={maxWeight !== null ? `${maxWeight} kg` : '—'}
-          color={colors.success}
-          bgColor={colors.successLight}
-        />
-        <StatChip
-          label="Mínimo"
-          value={minWeight !== null ? `${minWeight} kg` : '—'}
-          color={colors.danger}
-          bgColor={colors.dangerLight}
-        />
-        <StatChip
-          label="Último"
-          value={lastSet ? `${lastSet.weight} kg` : '—'}
-          color={colors.primary}
-          bgColor={colors.primaryLight}
-        />
+      {lastSet && <Text style={s.lastDate}>Último: {formatDate(lastSet.date)}</Text>}
+      {exercise.sets.length === 0 && <Text style={s.lastDate}>Sin registros aún</Text>}
+      <View style={s.statsRow}>
+        {isCardio ? (
+          <>
+            <View style={[s.chip, { backgroundColor: colors.successLight }]}><Text style={[s.chipValue, { color: colors.success }]}>{maxDuration ? `${maxDuration}min` : '—'}</Text><Text style={s.chipLabel}>Máx dur.</Text></View>
+            <View style={[s.chip, { backgroundColor: colors.dangerLight }]}><Text style={[s.chipValue, { color: colors.danger }]}>{minDuration ? `${minDuration}min` : '—'}</Text><Text style={s.chipLabel}>Mín dur.</Text></View>
+            <View style={[s.chip, { backgroundColor: colors.primaryLight }]}><Text style={[s.chipValue, { color: colors.primary }]}>{exercise.sets.length.toString()}</Text><Text style={s.chipLabel}>Sesiones</Text></View>
+          </>
+        ) : (
+          <>
+            <View style={[s.chip, { backgroundColor: colors.successLight }]}><Text style={[s.chipValue, { color: colors.success }]}>{maxWeight !== null ? `${maxWeight} kg` : '—'}</Text><Text style={s.chipLabel}>Máximo</Text></View>
+            <View style={[s.chip, { backgroundColor: colors.dangerLight }]}><Text style={[s.chipValue, { color: colors.danger }]}>{minWeight !== null ? `${minWeight} kg` : '—'}</Text><Text style={s.chipLabel}>Mínimo</Text></View>
+            <View style={[s.chip, { backgroundColor: colors.primaryLight }]}><Text style={[s.chipValue, { color: colors.primary }]}>{exercise.sets.length.toString()}</Text><Text style={s.chipLabel}>Sesiones</Text></View>
+          </>
+        )}
       </View>
-
-      {/* Mini gráfico de barras con los últimos 10 pesos */}
-      {lastTen.length > 0 && <MiniBarChart sets={lastTen} maxW={maxWeight} />}
+      {lastSummary && (
+        <View style={s.lastSessionBox}>
+          <Text style={s.lastSessionLabel}>{lastSummary.label}</Text>
+          <Text style={s.lastSessionText} numberOfLines={2}>{lastSummary.text}</Text>
+        </View>
+      )}
+      {lastTen.length > 0 && !isCardio && (
+        <View style={s.barsContainer}>
+          {[...lastTen].reverse().map((set) => {
+            const pct = maxWeight > 0 ? (set.maxWeightInSession || 0) / maxWeight : 0;
+            const barH = Math.max(4, Math.round(pct * 28));
+            return <View key={set.id} style={[s.bar, { height: barH, backgroundColor: set.maxWeightInSession === maxWeight ? colors.primary : colors.border }]} />;
+          })}
+        </View>
+      )}
     </TouchableOpacity>
   );
 }
 
-// -------------------------------------------------------
-// Sub-componente: StatChip
-// Muestra un cuadrito con un label y un valor.
-// Lo definimos acá mismo porque solo se usa dentro de ExerciseCard.
-// -------------------------------------------------------
-function StatChip({ label, value, color, bgColor }) {
-  return (
-    <View style={[styles.chip, { backgroundColor: bgColor }]}>
-      <Text style={[styles.chipValue, { color }]}>{value}</Text>
-      <Text style={styles.chipLabel}>{label}</Text>
-    </View>
-  );
-}
-
-// -------------------------------------------------------
-// Sub-componente: MiniBarChart
-// Dibuja un pequeño gráfico de barras con los últimos pesos.
-// -------------------------------------------------------
-function MiniBarChart({ sets, maxW }) {
-  // Mostramos los sets de más viejo a más nuevo (izquierda → derecha)
-  const ordered = [...sets].reverse();
-
-  return (
-    <View style={styles.barsContainer}>
-      {ordered.map((set, index) => {
-        // Calculamos qué porcentaje del máximo representa este peso
-        // para determinar la altura de la barra
-        const percentage = maxW > 0 ? set.weight / maxW : 0;
-        const barHeight = Math.max(4, Math.round(percentage * 28)); // mínimo 4px de alto
-
-        const isMax = set.weight === maxW;
-
-        return (
-          <View
-            key={set.id}
-            style={[
-              styles.bar,
-              {
-                height: barHeight,
-                backgroundColor: isMax ? colors.primary : colors.border,
-              },
-            ]}
-          />
-        );
-      })}
-    </View>
-  );
-}
-
-// -------------------------------------------------------
-// StyleSheet
-// En React Native los estilos se definen con StyleSheet.create()
-// en lugar de CSS. La sintaxis es parecida pero usa camelCase
-// (backgroundColor en vez de background-color) y los números
-// son dp (density-independent pixels) no px.
-// -------------------------------------------------------
-const styles = StyleSheet.create({
-  card: {
-    backgroundColor: colors.card,
-    borderRadius: 14,
-    padding: 16,
-    marginBottom: 12,
-    // Sombra en iOS
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.06,
-    shadowRadius: 4,
-    // Sombra en Android (elevation)
-    elevation: 2,
-  },
-  topRow: {
-    flexDirection: 'row',        // Pone los hijos en fila horizontal
-    justifyContent: 'space-between', // Espacia los hijos al máximo
-    alignItems: 'center',
-    marginBottom: 4,
-  },
-  name: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: colors.textPrimary,
-    flex: 1,                     // Ocupa todo el espacio disponible
-    marginRight: 8,
-  },
-  muscleBadge: {
-    paddingHorizontal: 10,
-    paddingVertical: 3,
-    borderRadius: 20,
-  },
-  muscleText: {
-    fontSize: 11,
-    fontWeight: '600',
-  },
-  lastDate: {
-    fontSize: 12,
-    color: colors.textLight,
-    marginBottom: 10,
-  },
-  statsRow: {
-    flexDirection: 'row',
-    gap: 8,                      // Espacio entre los chips
-    marginBottom: 10,
-  },
-  chip: {
-    flex: 1,
-    borderRadius: 8,
-    paddingVertical: 7,
-    paddingHorizontal: 4,
-    alignItems: 'center',
-  },
-  chipValue: {
-    fontSize: 14,
-    fontWeight: '700',
-  },
-  chipLabel: {
-    fontSize: 10,
-    color: colors.textSecondary,
-    marginTop: 2,
-  },
-  barsContainer: {
-    flexDirection: 'row',
-    alignItems: 'flex-end',      // Las barras se alinean desde abajo
-    gap: 3,
-    height: 30,
-    marginTop: 4,
-  },
-  bar: {
-    flex: 1,
-    borderRadius: 2,
-  },
+const makeStyles = (colors) => StyleSheet.create({
+  card: { backgroundColor: colors.card, borderRadius: 14, padding: 16, marginBottom: 12, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.06, shadowRadius: 4, elevation: 2 },
+  topRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 },
+  name: { fontSize: 16, fontWeight: '600', color: colors.textPrimary, flex: 1, marginRight: 8 },
+  muscleBadge: { paddingHorizontal: 10, paddingVertical: 3, borderRadius: 20 },
+  muscleText: { fontSize: 11, fontWeight: '600' },
+  lastDate: { fontSize: 12, color: colors.textLight, marginBottom: 10 },
+  statsRow: { flexDirection: 'row', gap: 8, marginBottom: 10 },
+  chip: { flex: 1, borderRadius: 8, paddingVertical: 7, paddingHorizontal: 4, alignItems: 'center' },
+  chipValue: { fontSize: 14, fontWeight: '700' },
+  chipLabel: { fontSize: 10, color: colors.textSecondary, marginTop: 2 },
+  lastSessionBox: { backgroundColor: colors.background, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 7, marginBottom: 8, borderLeftWidth: 3, borderLeftColor: colors.primary },
+  lastSessionLabel: { fontSize: 10, fontWeight: '600', color: colors.textSecondary, textTransform: 'uppercase', letterSpacing: 0.4, marginBottom: 2 },
+  lastSessionText: { fontSize: 13, fontWeight: '600', color: colors.textPrimary },
+  barsContainer: { flexDirection: 'row', alignItems: 'flex-end', gap: 3, height: 30, marginTop: 4 },
+  bar: { flex: 1, borderRadius: 2 },
 });
