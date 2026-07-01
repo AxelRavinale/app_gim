@@ -1,197 +1,189 @@
+// src/storage/routines.js
+// FIX: saveRoutine guarda local SIEMPRE, sync con servidor es opcional
+// Si el servidor falla, la rutina igual se guarda localmente
+
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { authAPI } from '../services/api';
 
-const ROUTINES_KEY = 'gymtracker_routines';
-const SESSIONS_KEY = 'gymtracker_routine_sessions';
-const BASE_URL = 'https://gimnasio-production-7475.up.railway.app';
+function uuidv4() {
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
+    const r = Math.random() * 16 | 0;
+    return (c === 'x' ? r : (r & 0x3 | 0x8)).toString(16);
+  });
+}
 
-export const DIAS_SEMANA = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'];
 
-// ─────────────────────────────────────────────────────────────────────────────
-// HELPERS
-// ─────────────────────────────────────────────────────────────────────────────
+const ROUTINES_KEY  = 'gymtracker_routines';
+const SESSIONS_KEY  = 'gymtracker_sessions';
+const BASE_URL      = 'https://gimnasio-production-7475.up.railway.app';
+
+export const DIAS_SEMANA = ['Lunes','Martes','Miércoles','Jueves','Viernes','Sábado','Domingo'];
 
 async function getToken() {
   try { return await AsyncStorage.getItem('gymtracker_access_token'); } catch { return null; }
 }
 
-async function isLoggedIn() {
-  try { return await authAPI.isLoggedIn(); } catch { return false; }
-}
-
-// Convierte el formato del servidor al formato local de la app
-function convertServerRoutine(serverRoutine) {
-  return {
-    id:        serverRoutine.id,
-    name:      serverRoutine.name,
-    weeks:     serverRoutine.weeks,
-    createdAt: serverRoutine.created_at,
-    days: (serverRoutine.days || [])
-      .filter(d => d && d.dayName)
-      .sort((a, b) => (a.orderIndex || 0) - (b.orderIndex || 0))
-      .map(d => ({
-        dayName:   d.dayName,
-        exercises: (d.exercises || [])
-          .sort((a, b) => (a.orderIndex || 0) - (b.orderIndex || 0))
-          .map(e => ({
-            exerciseId:   e.exerciseId,
-            targetSets:   e.targetSets || 3,
-            targetReps:   e.targetReps || 10,
-            exerciseName: e.exerciseName || '',
-            muscleGroup:  e.muscleGroup  || '',
-          })),
-      })),
-  };
-}
-
-// Sincroniza rutinas del servidor y las guarda localmente como cache
-async function syncFromServer() {
-  try {
-    const loggedIn = await isLoggedIn();
-    if (!loggedIn) return null;
-
-    const token = await getToken();
-    if (!token) return null;
-
-    const response = await fetch(`${BASE_URL}/api/routines`, {
-      headers: { 'Authorization': `Bearer ${token}` },
-    });
-
-    if (!response.ok) return null;
-
-    const serverRoutines = await response.json();
-    if (!serverRoutines || serverRoutines.length === 0) return null;
-
-    const converted = serverRoutines.map(convertServerRoutine);
-    await AsyncStorage.setItem(ROUTINES_KEY, JSON.stringify(converted));
-    return converted;
-  } catch (error) {
-    console.log('Sync rutinas fallido (offline?):', error.message);
-    return null;
-  }
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// CRUD
-// ─────────────────────────────────────────────────────────────────────────────
+// ── Rutinas ───────────────────────────────────────────────────────────────────
 
 export async function getAllRoutines() {
   try {
-    // Intentamos traer del servidor primero
-    const serverData = await syncFromServer();
-    if (serverData && serverData.length > 0) return serverData;
-
-    // Fallback local
-    const json = await AsyncStorage.getItem(ROUTINES_KEY);
-    return json ? JSON.parse(json) : [];
-  } catch {
-    return [];
-  }
-}
-
-export async function getRoutineById(id) {
-  try {
-    // Primero intentamos traerla del servidor directamente
-    const loggedIn = await isLoggedIn();
-    if (loggedIn) {
-      const token = await getToken();
-      if (token) {
-        const response = await fetch(`${BASE_URL}/api/routines/${id}`, {
+    // Intentar traer del servidor primero
+    const token = await getToken();
+    if (token) {
+      try {
+        const res = await fetch(`${BASE_URL}/api/routines`, {
           headers: { 'Authorization': `Bearer ${token}` },
         });
-        if (response.ok) {
-          const serverRoutine = await response.json();
-          return convertServerRoutine(serverRoutine);
+        if (res.ok) {
+          const serverRoutines = await res.json();
+          if (serverRoutines?.length > 0) {
+            const converted = serverRoutines.map(convertServerRoutine);
+            await AsyncStorage.setItem(ROUTINES_KEY, JSON.stringify(converted));
+            return converted;
+          }
         }
+      } catch (serverErr) {
+        console.log('No se pudo conectar al servidor, usando local:', serverErr.message);
       }
     }
+  } catch {}
 
-    // Fallback local
-    const routines = await getAllRoutines();
-    return routines.find(r => r.id === id) || null;
-  } catch {
-    // Fallback local
-    const routines = await getAllRoutines();
-    return routines.find(r => r.id === id) || null;
-  }
+  // Fallback: local
+  const json = await AsyncStorage.getItem(ROUTINES_KEY);
+  return json ? JSON.parse(json) : [];
 }
 
-export async function saveRoutine(routineData) {
-  try {
-    // Guardamos local primero
-    const routines = await getAllRoutines();
-    const newRoutine = {
-      id: Date.now().toString(),
-      ...routineData,
-      createdAt: new Date().toISOString(),
-    };
-    routines.push(newRoutine);
-    await AsyncStorage.setItem(ROUTINES_KEY, JSON.stringify(routines));
-
-    // Sync al servidor en background
-    const loggedIn = await isLoggedIn();
-    if (loggedIn) {
-      const token = await getToken();
-      if (token) {
-        const response = await fetch(`${BASE_URL}/api/routines`, {
-          method: 'POST',
-          headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
-          body: JSON.stringify(routineData),
-        });
-        if (response.ok) {
-          const saved = await response.json();
-          // Actualizamos el ID local con el del servidor
-          const updated = routines.map(r => r.id === newRoutine.id ? { ...r, id: saved.id } : r);
-          await AsyncStorage.setItem(ROUTINES_KEY, JSON.stringify(updated));
-          return { ...newRoutine, id: saved.id };
-        }
-      }
-    }
-
-    return newRoutine;
-  } catch (error) {
-    throw error;
-  }
+function convertServerRoutine(sr) {
+  return {
+    id:        sr.id,
+    name:      sr.name,
+    weeks:     sr.weeks,
+    createdAt: sr.created_at || new Date().toISOString(),
+    days: (sr.days || []).map(d => ({
+      dayName:   d.day_name || d.dayName,
+      exercises: (d.exercises || []).map(e => ({
+        exerciseId:   e.exercise_id  || e.exerciseId,
+        exerciseName: e.exercise_name || e.exerciseName || '',
+        targetSets:   e.target_sets   || e.targetSets   || 3,
+        targetReps:   e.target_reps   || e.targetReps   || 10,
+        notes:        e.notes         || '',
+        orderIndex:   e.order_index   || e.orderIndex   || 0,
+      })),
+    })),
+  };
 }
 
-export async function updateRoutine(id, updates) {
+
+export async function getRoutineById(id) {
+  const all = await getAllRoutinesLocal();
+  return all.find(r => r.id === id) || null;
+}
+
+export async function saveRoutine(data) {
+  // 1. Generar ID local
+  const routine = {
+    id:        uuidv4(),
+    name:      data.name,
+    weeks:     data.weeks,
+    days:      data.days,
+    createdAt: new Date().toISOString(),
+  };
+
+  // 2. Guardar local SIEMPRE (no esperamos al servidor)
+  const existing = await getAllRoutinesLocal();
+  existing.push(routine);
+  await AsyncStorage.setItem(ROUTINES_KEY, JSON.stringify(existing));
+
+  // 3. Intentar sincronizar con servidor (en background, sin bloquear)
+  syncRoutineToServer(routine).catch(err =>
+    console.log('Sync con servidor falló (rutina guardada localmente):', err.message)
+  );
+
+  return routine;
+}
+
+async function getAllRoutinesLocal() {
   try {
-    const routines = await getAllRoutines();
-    const updated = routines.map(r => r.id === id ? { ...r, ...updates } : r);
-    await AsyncStorage.setItem(ROUTINES_KEY, JSON.stringify(updated));
-    return true;
-  } catch (error) {
-    throw error;
+    const json = await AsyncStorage.getItem(ROUTINES_KEY);
+    return json ? JSON.parse(json) : [];
+  } catch { return []; }
+}
+
+async function syncRoutineToServer(routine) {
+  const token = await getToken();
+  if (!token) return;
+
+  const payload = {
+    name:  routine.name,
+    weeks: routine.weeks,
+    days:  routine.days.map(d => ({
+      dayName:   d.dayName,
+      exercises: (d.exercises || []).map((e, idx) => ({
+        exerciseId:  e.exerciseId,
+        targetSets:  e.targetSets,
+        targetReps:  e.targetReps,
+        notes:       e.notes || '',
+        orderIndex:  idx,
+      })),
+    })),
+  };
+
+  const res = await fetch(`${BASE_URL}/api/routines`, {
+    method:  'POST',
+    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+    body:    JSON.stringify(payload),
+  });
+
+  if (!res.ok) {
+    const err = await res.json();
+    throw new Error(err.error || `HTTP ${res.status}`);
   }
+
+  // Actualizar el ID local con el del servidor si la sync fue exitosa
+  const serverRoutine = await res.json();
+  const local = await getAllRoutinesLocal();
+  const updated = local.map(r => r.id === routine.id
+    ? { ...r, id: serverRoutine.id || r.id, serverId: serverRoutine.id }
+    : r
+  );
+  await AsyncStorage.setItem(ROUTINES_KEY, JSON.stringify(updated));
+}
+
+export async function updateRoutine(id, data) {
+  const routines = await getAllRoutinesLocal();
+  const idx = routines.findIndex(r => r.id === id);
+  if (idx === -1) throw new Error('Rutina no encontrada');
+
+  routines[idx] = { ...routines[idx], ...data, updatedAt: new Date().toISOString() };
+  await AsyncStorage.setItem(ROUTINES_KEY, JSON.stringify(routines));
+
+  // Sync en background
+  const token = await getToken();
+  if (token) {
+    fetch(`${BASE_URL}/api/routines/${id}`, {
+      method:  'PUT',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+      body:    JSON.stringify(data),
+    }).catch(err => console.log('Update sync falló:', err.message));
+  }
+
+  return routines[idx];
 }
 
 export async function deleteRoutine(id) {
-  try {
-    const routines = await getAllRoutines();
-    await AsyncStorage.setItem(ROUTINES_KEY, JSON.stringify(routines.filter(r => r.id !== id)));
-    const sessions = await getAllSessions();
-    await AsyncStorage.setItem(SESSIONS_KEY, JSON.stringify(sessions.filter(s => s.routineId !== id)));
+  const routines = await getAllRoutinesLocal();
+  const filtered = routines.filter(r => r.id !== id);
+  await AsyncStorage.setItem(ROUTINES_KEY, JSON.stringify(filtered));
 
-    // Sync al servidor
-    const loggedIn = await isLoggedIn();
-    if (loggedIn) {
-      const token = await getToken();
-      if (token) {
-        fetch(`${BASE_URL}/api/routines/${id}`, {
-          method: 'DELETE',
-          headers: { 'Authorization': `Bearer ${token}` },
-        }).catch(() => {});
-      }
-    }
-    return true;
-  } catch (error) {
-    throw error;
+  const token = await getToken();
+  if (token) {
+    fetch(`${BASE_URL}/api/routines/${id}`, {
+      method:  'DELETE',
+      headers: { 'Authorization': `Bearer ${token}` },
+    }).catch(() => {});
   }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// SESIONES
-// ─────────────────────────────────────────────────────────────────────────────
+// ── Sesiones ──────────────────────────────────────────────────────────────────
 
 export async function getAllSessions() {
   try {
@@ -200,95 +192,47 @@ export async function getAllSessions() {
   } catch { return []; }
 }
 
-export async function getSessionsByRoutine(routineId) {
-  try {
-    const sessions = await getAllSessions();
-    return sessions.filter(s => s.routineId === routineId);
-  } catch { return []; }
-}
-
 export async function saveSession(sessionData) {
-  try {
-    const sessions = await getAllSessions();
-    const existingIndex = sessions.findIndex(
-      s => s.routineId === sessionData.routineId &&
-           s.week === sessionData.week &&
-           s.dayName === sessionData.dayName
-    );
-    const newSession = { id: Date.now().toString(), ...sessionData, date: new Date().toISOString() };
-    if (existingIndex >= 0) sessions[existingIndex] = newSession;
-    else sessions.push(newSession);
-    await AsyncStorage.setItem(SESSIONS_KEY, JSON.stringify(sessions));
-    return newSession;
-  } catch (error) { throw error; }
+  const session = {
+    id:          uuidv4(),
+    routineId:   sessionData.routineId,
+    week:        sessionData.week,
+    dayName:     sessionData.dayName,
+    status:      sessionData.status,
+    exercises:   sessionData.exercises,
+    completedAt: new Date().toISOString(),
+  };
+
+  const sessions = await getAllSessions();
+  sessions.push(session);
+  await AsyncStorage.setItem(SESSIONS_KEY, JSON.stringify(sessions));
+  return session;
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// CÁLCULOS
-// ─────────────────────────────────────────────────────────────────────────────
+
+export async function getSessionsByRoutine(routineId) {
+  const all = await getAllSessions();
+  return all.filter(s => s.routineId === routineId);
+}
+
+export async function deleteSet(routineId, sessionId) {
+  const sessions = await getAllSessions();
+  const filtered = sessions.filter(s => s.id !== sessionId);
+  await AsyncStorage.setItem(SESSIONS_KEY, JSON.stringify(filtered));
+}
 
 export function calculateRoutineProgress(routine, sessions) {
-  const activeDays = (routine.days || []).filter(d => d.exercises && d.exercises.length > 0);
-  const totalDays = routine.weeks * activeDays.length;
-  const completedSessions = sessions.filter(s => s.status === 'completed');
-  const skippedSessions   = sessions.filter(s => s.status === 'skipped');
-  const completedDays = completedSessions.length;
-  const skippedDays   = skippedSessions.length;
-  const registeredDays = completedDays + skippedDays;
-  const completionPercent = registeredDays > 0 ? Math.round((completedDays / registeredDays) * 100) : 0;
-  const currentWeek = completedSessions.length > 0
-    ? Math.max(...completedSessions.map(s => s.week))
+  const weeks     = routine.weeks || 1;
+  const activeDays = (routine.days || []).filter(d => (d.exercises || []).length > 0);
+  const totalDays = weeks * activeDays.length;
+  const completedDays = sessions.filter(s => s.status === 'completed').length;
+  const currentWeek = sessions.length > 0
+    ? Math.max(...sessions.map(s => s.week || 1))
     : 1;
-
-  const weekProgress = [];
-  for (let w = 1; w <= routine.weeks; w++) {
-    const weekSessions = sessions.filter(s => s.week === w);
-    weekProgress.push({
-      week: w,
-      completed: weekSessions.filter(s => s.status === 'completed').length,
-      skipped:   weekSessions.filter(s => s.status === 'skipped').length,
-      total: activeDays.length,
-    });
-  }
-
-  const allExerciseIds = [...new Set(activeDays.flatMap(d => d.exercises.map(e => e.exerciseId)))];
-  const exerciseProgress = allExerciseIds.map(exerciseId => {
-    const exerciseSessions = completedSessions
-      .flatMap(s => s.exercises || [])
-      .filter(e => e.exerciseId === exerciseId && e.status === 'completed');
-    if (exerciseSessions.length === 0) {
-      return { exerciseId, sessionsCompleted: 0, firstWeight: null, lastWeight: null, weightDiff: null };
-    }
-    const weightSessions = exerciseSessions.filter(e => e.series && e.series.length > 0);
-    if (weightSessions.length > 0) {
-      const maxWeights = weightSessions.map(e => {
-        const weights = e.series.map(s => s.weight).filter(w => w > 0);
-        return weights.length > 0 ? Math.max(...weights) : null;
-      }).filter(w => w !== null);
-      return {
-        exerciseId,
-        sessionsCompleted: exerciseSessions.length,
-        firstWeight: maxWeights[0] || null,
-        lastWeight:  maxWeights[maxWeights.length - 1] || null,
-        weightDiff:  maxWeights.length >= 2 ? maxWeights[maxWeights.length - 1] - maxWeights[0] : null,
-      };
-    }
-    return { exerciseId, sessionsCompleted: exerciseSessions.length, firstWeight: null, lastWeight: null, weightDiff: null };
-  });
-
-  return { completedDays, skippedDays, totalDays, completionPercent, currentWeek, weekProgress, exerciseProgress };
-}
-
-export function buildInitialExerciseState(dayExercises) {
-  return dayExercises.map(ex => ({
-    exerciseId: ex.exerciseId,
-    status: 'pending',
-    series: Array.from({ length: ex.targetSets || 3 }, (_, i) => ({
-      serieNumber: i + 1,
-      weight: '',
-      reps: (ex.targetReps || 10).toString(),
-    })),
-    duration: '',
-    distance: '',
-  }));
+  return {
+    totalDays,
+    completedDays,
+    currentWeek,
+    completionPercent: totalDays > 0 ? Math.round((completedDays / totalDays) * 100) : 0,
+  };
 }
