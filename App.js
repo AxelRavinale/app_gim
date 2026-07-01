@@ -4,6 +4,7 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { StatusBar } from 'expo-status-bar';
 import { Text, ActivityIndicator, View } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import LoginScreen           from './src/screens/LoginScreen';
 import HomeScreen            from './src/screens/HomeScreen';
@@ -23,12 +24,9 @@ import PaymentScreen         from './src/screens/PaymentScreen';
 import { ThemeProvider, useTheme } from './src/theme/ThemeContext';
 import { authAPI, getSavedUser }   from './src/services/api';
 
-// Contexto global de sesión — permite cerrar sesión desde cualquier pantalla
-export const SessionContext = createContext({ logout: () => {} });
-export function useSession() { return useContext(SessionContext); }
-
-const Stack = createNativeStackNavigator();
-const Tab   = createBottomTabNavigator();
+// ── SessionContext — acceso global a user y logout ────────────────────────────
+const SessionContext = createContext(null);
+export const useSession = () => useContext(SessionContext);
 
 function buildScreenOptions(colors) {
   return {
@@ -47,7 +45,7 @@ function ExercisesStack() {
       <Stack.Screen name="Home"            component={HomeScreen}            options={{ headerShown: false }} />
       <Stack.Screen name="Detail"          component={DetailScreen}          options={{ title: 'Ejercicio' }} />
       <Stack.Screen name="AddExercise"     component={AddExerciseScreen}     options={{ title: 'Nuevo ejercicio', presentation: 'modal' }} />
-      <Stack.Screen name="ExecuteExercise" component={ExecuteExerciseScreen} options={{ title: 'Ejecutar' }} />
+      <Stack.Screen name="ExecuteExercise" component={ExecuteExerciseScreen} options={{ title: 'Ejecutar', headerShown: false }} />
     </Stack.Navigator>
   );
 }
@@ -59,7 +57,7 @@ function RoutinesStack() {
       <Stack.Screen name="Routines"       component={RoutinesScreen}       options={{ headerShown: false }} />
       <Stack.Screen name="RoutineDetail"  component={RoutineDetailScreen}  options={{ title: 'Rutina' }} />
       <Stack.Screen name="AddRoutine"     component={AddRoutineScreen}     options={{ title: 'Nueva rutina', presentation: 'modal' }} />
-      <Stack.Screen name="ExecuteRoutine" component={ExecuteRoutineScreen} options={{ title: 'Entrenar' }} />
+      <Stack.Screen name="ExecuteRoutine" component={ExecuteRoutineScreen} options={{ title: 'Entrenar', headerShown: false }} />
     </Stack.Navigator>
   );
 }
@@ -70,36 +68,63 @@ function AchievementsStack() { const { colors } = useTheme(); return <Stack.Navi
 function SettingsStack()     { const { colors } = useTheme(); return <Stack.Navigator screenOptions={buildScreenOptions(colors)}><Stack.Screen name="Settings"     component={SettingsScreen}     options={{ headerShown: false }} /></Stack.Navigator>; }
 function PaymentStack()      { const { colors } = useTheme(); return <Stack.Navigator screenOptions={buildScreenOptions(colors)}><Stack.Screen name="Payment"      component={PaymentScreen}      options={{ headerShown: false }} /></Stack.Navigator>; }
 
+const Stack = createNativeStackNavigator();
+const Tab   = createBottomTabNavigator();
+
 function MainApp() {
-  const { colors } = useTheme();
+  const { colors }  = useTheme();
+  const { user }    = useSession();
+
+  const ROLE_ICONS = {
+    ExercisesTab:    '🏋️',
+    RoutinesTab:     '📋',
+    StatsTab:        '📊',
+    TimerTab:        '⏱️',
+    AchievementsTab: '🏆',
+    PaymentTab:      '💳',
+    SettingsTab:     '⚙️',
+  };
+
   return (
-    <Tab.Navigator
-      screenOptions={({ route }) => ({
-        headerShown: false,
-        tabBarIcon: ({ focused }) => {
-          const icons = { ExercisesTab:'🏋️', RoutinesTab:'📋', StatsTab:'📊', TimerTab:'⏱️', AchievementsTab:'🏆', SettingsTab:'⚙️' };
-          return <Text style={{ fontSize: focused ? 20 : 16 }}>{icons[route.name] || '•'}</Text>;
-        },
-        tabBarActiveTintColor:   colors.brand,
-        tabBarInactiveTintColor: colors.textLight,
-        tabBarStyle: { backgroundColor: colors.card, borderTopColor: colors.border, borderTopWidth: 0.5, paddingBottom: 6, paddingTop: 4, height: 62 },
-        tabBarLabelStyle: { fontSize: 10, fontWeight: '700' },
-      })}
-    >
-      <Tab.Screen name="ExercisesTab"    component={ExercisesStack}    options={{ tabBarLabel: 'Ejercicios' }} />
-      <Tab.Screen name="RoutinesTab"     component={RoutinesStack}     options={{ tabBarLabel: 'Rutinas' }} />
-      <Tab.Screen name="StatsTab"        component={StatsStack}        options={{ tabBarLabel: 'Stats' }} />
-      <Tab.Screen name="TimerTab"        component={TimerStack}        options={{ tabBarLabel: 'Timer' }} />
-      <Tab.Screen name="AchievementsTab" component={AchievementsStack} options={{ tabBarLabel: 'Logros' }} />
-      <Tab.Screen name="PaymentTab"      component={PaymentStack}      options={{ tabBarLabel: 'Mi cuota' }} />
-      <Tab.Screen name="SettingsTab"     component={SettingsStack}     options={{ tabBarLabel: 'Ajustes' }} />
-    </Tab.Navigator>
+    <NavigationContainer>
+      <StatusBar style="light" />
+      <Tab.Navigator
+        screenOptions={({ route }) => ({
+          headerShown: false,
+          tabBarIcon: ({ focused }) => (
+            <Text style={{ fontSize: focused ? 20 : 16 }}>
+              {ROLE_ICONS[route.name] || '•'}
+            </Text>
+          ),
+          tabBarActiveTintColor:   colors.brand,
+          tabBarInactiveTintColor: colors.textLight,
+          tabBarStyle: {
+            backgroundColor: colors.card,
+            borderTopColor:  colors.border,
+            borderTopWidth:  0.5,
+            paddingBottom:   6,
+            paddingTop:      4,
+            height:          62,
+          },
+          tabBarLabelStyle: { fontSize: 10, fontWeight: '700' },
+        })}
+      >
+        <Tab.Screen name="ExercisesTab"    component={ExercisesStack}    options={{ tabBarLabel: 'Ejercicios' }} />
+        <Tab.Screen name="RoutinesTab"     component={RoutinesStack}     options={{ tabBarLabel: 'Rutinas' }} />
+        <Tab.Screen name="StatsTab"        component={StatsStack}        options={{ tabBarLabel: 'Stats' }} />
+        <Tab.Screen name="TimerTab"        component={TimerStack}        options={{ tabBarLabel: 'Timer' }} />
+        <Tab.Screen name="AchievementsTab" component={AchievementsStack} options={{ tabBarLabel: 'Logros' }} />
+        <Tab.Screen name="PaymentTab"      component={PaymentStack}      options={{ tabBarLabel: 'Mi cuota' }} />
+        <Tab.Screen name="SettingsTab"     component={SettingsStack}     options={{ tabBarLabel: 'Ajustes' }} />
+      </Tab.Navigator>
+    </NavigationContainer>
   );
 }
 
 function AppContent() {
-  const [user, setUser]             = useState(null);
-  const [isChecking, setIsChecking] = useState(true);
+  const { colors }                      = useTheme();
+  const [user, setUser]                 = useState(null);
+  const [isChecking, setIsChecking]     = useState(true);
 
   useEffect(() => { checkSession(); }, []);
 
@@ -107,39 +132,65 @@ function AppContent() {
     try {
       const savedUser = await getSavedUser();
       const isLogged  = await authAPI.isLoggedIn();
-      if (savedUser && isLogged) setUser(savedUser);
-    } catch {}
-    finally { setIsChecking(false); }
+      if (savedUser && isLogged) {
+        // Asegurarse que roles sea siempre un array
+        const normalizedUser = {
+          ...savedUser,
+          roles: Array.isArray(savedUser.roles)
+            ? savedUser.roles
+            : typeof savedUser.roles === 'string'
+              ? JSON.parse(savedUser.roles)
+              : [savedUser.role || 'member'],
+          activeRole: savedUser.activeRole || savedUser.active_role || savedUser.role || 'member',
+        };
+        setUser(normalizedUser);
+      }
+    } catch (err) {
+      console.log('Error checkSession:', err.message);
+    } finally {
+      setIsChecking(false);
+    }
   }
 
-  // Función de logout que se pasa por contexto a cualquier pantalla
-  async function logout() {
+  async function handleLogout() {
     try { await authAPI.logout(); } catch {}
+    await AsyncStorage.multiRemove([
+      'gymtracker_access_token',
+      'gymtracker_refresh_token',
+      'gymtracker_user',
+    ]);
     setUser(null);
+  }
+
+  function handleUserChange(updatedUser) {
+    const normalized = {
+      ...updatedUser,
+      roles: Array.isArray(updatedUser.roles)
+        ? updatedUser.roles
+        : typeof updatedUser.roles === 'string'
+          ? JSON.parse(updatedUser.roles)
+          : [updatedUser.role || 'member'],
+      activeRole: updatedUser.activeRole || updatedUser.active_role || updatedUser.role || 'member',
+    };
+    setUser(normalized);
+    // Guardar en AsyncStorage también
+    AsyncStorage.setItem('gymtracker_user', JSON.stringify(normalized)).catch(() => {});
   }
 
   if (isChecking) {
     return (
-      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#0A0A0A' }}>
-        <Text style={{ fontSize: 36, marginBottom: 16 }}>💪</Text>
+      <View style={{ flex:1, justifyContent:'center', alignItems:'center', backgroundColor:'#0A0A0A' }}>
+        <Text style={{ fontSize:36, marginBottom:16 }}>💪</Text>
         <ActivityIndicator color="#E8B500" size="large" />
       </View>
     );
   }
 
+  if (!user) return <LoginScreen onLoginSuccess={handleUserChange} />;
+
   return (
-    <SessionContext.Provider value={{ logout, user }}>
-      <NavigationContainer>
-        <StatusBar style="light" />
-        {user
-          ? <MainApp />
-          : <Stack.Navigator screenOptions={{ headerShown: false }}>
-              <Stack.Screen name="Login">
-                {(props) => <LoginScreen {...props} onLoginSuccess={(u) => setUser(u)} />}
-              </Stack.Screen>
-            </Stack.Navigator>
-        }
-      </NavigationContainer>
+    <SessionContext.Provider value={{ user, logout: handleLogout, updateUser: handleUserChange }}>
+      <MainApp />
     </SessionContext.Provider>
   );
 }

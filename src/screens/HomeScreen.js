@@ -6,6 +6,7 @@ import {
 import { useFocusEffect } from '@react-navigation/native';
 import { getAllExercises, MUSCLE_GROUPS } from '../storage/exercises';
 import { useTheme } from '../theme/ThemeContext';
+import RoleSwitcher from '../components/RoleSwitcher';
 import { getSavedUser } from '../services/api';
 
 const BASE_URL = 'https://gimnasio-production-7475.up.railway.app';
@@ -143,15 +144,18 @@ export default function HomeScreen({ navigation }) {
       {/* Header */}
       <View style={s.header}>
         <View style={s.headerTop}>
-          <View>
+          <View style={{ flex:1 }}>
             <Text style={s.gymLabel}>GYMTRACKER</Text>
             <Text style={s.headerTitle}>Ejercicios</Text>
           </View>
-          {tab === 'mine' && (
-            <TouchableOpacity style={s.addBtn} onPress={() => navigation.navigate('AddExercise')} activeOpacity={0.8}>
-              <Text style={s.addBtnText}>+</Text>
-            </TouchableOpacity>
-          )}
+          <View style={{ flexDirection:'row', alignItems:'center', gap:8 }}>
+            <RoleSwitcher />
+            {tab === 'mine' && (
+              <TouchableOpacity style={s.addBtn} onPress={() => navigation.navigate('AddExercise')} activeOpacity={0.8}>
+                <Text style={s.addBtnText}>+</Text>
+              </TouchableOpacity>
+            )}
+          </View>
         </View>
         <Text style={s.headerSub}>
           {tab === 'mine'
