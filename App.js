@@ -20,6 +20,10 @@ import TimerScreen           from './src/screens/TimerScreen';
 import AchievementsScreen    from './src/screens/AchievementsScreen';
 import SettingsScreen        from './src/screens/SettingsScreen';
 import PaymentScreen         from './src/screens/PaymentScreen';
+import SelectionScreen       from './src/screens/SelectionScreen';
+import JoinGymScreen         from './src/screens/JoinGymScreen';
+import CardioScreen          from './src/screens/CardioScreen';
+import CardioTimerScreen     from './src/screens/CardioTimerScreen';
 
 import { ThemeProvider, useTheme } from './src/theme/ThemeContext';
 import { authAPI, getSavedUser }   from './src/services/api';
@@ -88,7 +92,11 @@ function MainApp() {
   return (
     <NavigationContainer>
       <StatusBar style="light" />
-      <Tab.Navigator
+      <Stack.Navigator screenOptions={{ headerShown: false }}>
+        <Stack.Screen name="Selection" component={SelectionScreen} />
+        <Stack.Screen name="Training">
+          {() => (
+            <Tab.Navigator
         screenOptions={({ route }) => ({
           headerShown: false,
           tabBarIcon: ({ focused }) => (
@@ -116,7 +124,13 @@ function MainApp() {
         <Tab.Screen name="AchievementsTab" component={AchievementsStack} options={{ tabBarLabel: 'Logros' }} />
         <Tab.Screen name="PaymentTab"      component={PaymentStack}      options={{ tabBarLabel: 'Mi cuota' }} />
         <Tab.Screen name="SettingsTab"     component={SettingsStack}     options={{ tabBarLabel: 'Ajustes' }} />
-      </Tab.Navigator>
+            </Tab.Navigator>
+          )}
+        </Stack.Screen>
+        <Stack.Screen name="Cardio"       component={CardioScreen} />
+        <Stack.Screen name="JoinGym"      component={(props) => <JoinGymScreen {...props} onJoined={() => props.navigation.goBack()} />} options={{ headerShown: false }} />
+        <Stack.Screen name="CardioTimer"  component={CardioTimerScreen} />
+      </Stack.Navigator>
     </NavigationContainer>
   );
 }

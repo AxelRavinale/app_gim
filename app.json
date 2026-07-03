@@ -1,7 +1,7 @@
 {
   "expo": {
     "name": "GymTracker",
-    "slug": "GymTracker",
+    "slug": "gymtracker-dm59lq",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -10,20 +10,48 @@
     "splash": {
       "image": "./assets/splash-icon.png",
       "resizeMode": "contain",
-      "backgroundColor": "#ffffff"
+      "backgroundColor": "#0A0A0A"
     },
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "config": {
+        "googleMapsApiKey": "AIzaSyB8PIahGMoB-35KhEWONg6W-QCP8h3UXOc"
+      }
     },
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#ffffff"
+        "backgroundColor": "#0A0A0A"
       },
-      "edgeToEdgeEnabled": true
+      "edgeToEdgeEnabled": true,
+      "config": {
+        "googleMaps": {
+          "apiKey": "AIzaSyB8PIahGMoB-35KhEWONg6W-QCP8h3UXOc"
+        }
+      },
+      "permissions": [
+        "android.permission.ACCESS_COARSE_LOCATION",
+        "android.permission.ACCESS_FINE_LOCATION"
+      ],
+      "package": "com.axelravinalesorganization.gymtrackerdm59lq"
     },
     "web": {
       "favicon": "./assets/favicon.png"
-    }
+    },
+    "plugins": [
+      [
+        "expo-location",
+        {
+          "locationAlwaysAndWhenInUsePermission": "GymTracker necesita acceso a tu ubicación para registrar tus rutas de cardio.",
+          "locationWhenInUsePermission": "GymTracker necesita acceso a tu ubicación para registrar tus rutas de cardio."
+        }
+      ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "72bfa7af-67cd-47f5-9a68-77721a6c87e1"
+      }
+    },
+    "owner": "axelravinales-organization"
   }
 }
