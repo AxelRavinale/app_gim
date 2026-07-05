@@ -6,6 +6,7 @@ import {
   View, Text, TouchableOpacity, StyleSheet,
   StatusBar, Dimensions, ImageBackground, Platform,
 } from 'react-native';
+import { Image } from 'react-native';
 import { useTheme } from '../theme/ThemeContext';
 
 const { width, height } = Dimensions.get('window');
@@ -20,8 +21,11 @@ export default function SelectionScreen({ navigation }) {
 
       {/* Header */}
       <View style={s.header}>
-        <Text style={s.logo}>💪</Text>
-        <Text style={s.appName}>GYMTRACKER</Text>
+        <Image
+          source={require('../../assets/icon.png')}
+          style={s.logo}
+          resizeMode="contain"
+        />
         <Text style={s.subtitle}>¿Qué vas a hacer hoy?</Text>
       </View>
 

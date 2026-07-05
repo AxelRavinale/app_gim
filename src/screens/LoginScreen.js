@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, StyleSheet,
   Animated, StatusBar, ActivityIndicator, Alert,
-  KeyboardAvoidingView, Platform, ScrollView,
+  KeyboardAvoidingView, Platform, ScrollView, Image,
 } from 'react-native';
 import { authAPI } from '../services/api';
 import { useTheme } from '../theme/ThemeContext';
@@ -93,10 +93,11 @@ export default function LoginScreen({ onLoginSuccess }) {
 
         {/* Logo */}
         <Animated.View style={[s.logoSection, { opacity:logoAnim, transform:[{ translateY: logoAnim.interpolate({ inputRange:[0,1], outputRange:[30,0] }) }] }]}>
-          <View style={s.logoIcon}>
-            <Text style={s.logoIconText}>💪</Text>
-          </View>
-          <Text style={s.appName}>GymTracker</Text>
+          <Image
+            source={require('../../assets/icon.png')}
+            style={s.logoImage}
+            resizeMode="contain"
+          />
           <View style={s.brandLine} />
         </Animated.View>
 
@@ -198,9 +199,7 @@ const makeStyles = (colors) => StyleSheet.create({
   container: { flex:1, backgroundColor:'#0A0A0A' },
   scroll: { flexGrow:1, justifyContent:'center', padding:24 },
   logoSection: { alignItems:'center', marginBottom:32 },
-  logoIcon: { width:72, height:72, borderRadius:20, backgroundColor:'#E8B500', justifyContent:'center', alignItems:'center', marginBottom:14, shadowColor:'#E8B500', shadowOffset:{width:0,height:6}, shadowOpacity:0.4, shadowRadius:12, elevation:10 },
-  logoIconText: { fontSize:36 },
-  appName: { fontSize:32, fontWeight:'900', color:'#F5F5F5', letterSpacing:-1 },
+  logoImage: { width:200, height:200, marginBottom:4 },
   brandLine: { width:36, height:3, backgroundColor:'#E8B500', borderRadius:2, marginTop:8 },
   formCard: { backgroundColor:'#111', borderRadius:20, padding:20, borderWidth:0.5, borderColor:'#1E1E1E' },
   modeSelector: { flexDirection:'row', backgroundColor:'#0A0A0A', borderRadius:12, padding:3, marginBottom:20 },
