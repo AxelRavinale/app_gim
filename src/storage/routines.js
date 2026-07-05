@@ -24,6 +24,26 @@ async function getToken() {
 
 // ── Rutinas ───────────────────────────────────────────────────────────────────
 
+// Archivar una rutina (moverla a historial)
+export async function archiveRoutine(routineId) {
+  const all = await getAllRoutinesLocal();
+  const updated = all.map(r => r.id === routineId ? { ...r, isArchived: true, archivedAt: new Date().toISOString() } : r);
+  await AsyncStorage.setItem(ROUTINES_KEY, JSON.stringify(updated));
+}
+
+// Restaurar una rutina archivada
+export async function unarchiveRoutine(routineId) {
+  const all = await getAllRoutinesLocal();
+  const updated = all.map(r => r.id === routineId ? { ...r, isArchived: false, archivedAt: null } : r);
+  await AsyncStorage.setItem(ROUTINES_KEY, JSON.stringify(updated));
+}
+
+// Obtener rutinas archivadas
+export async function getArchivedRoutines() {
+  const all = await getAllRoutinesLocal();
+  return all.filter(r => r.isArchived === true);
+}
+
 export async function getAllRoutines() {
   try {
     // Intentar traer del servidor primero
