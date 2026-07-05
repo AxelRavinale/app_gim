@@ -5,7 +5,8 @@ import {
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { WebView } from 'react-native-webview';
-import { saveExercise, updateExercise, MUSCLE_GROUPS, TRACKING_TYPES } from '../storage/exercises';
+import { saveExercise, updateExercise, MUSCLE_GROUPS, TRACKING_TYPES, getAllExercises } from '../storage/exercises';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useTheme } from '../theme/ThemeContext';
 
 const BASE_URL = 'https://gimnasio-production-7475.up.railway.app';
@@ -38,6 +39,8 @@ export default function AddExerciseScreen({ route, navigation }) {
   const [localVideoUri, setLocalVideoUri] = useState(editingExercise?.videoLocal || null);
   const [animationSvg, setAnimationSvg] = useState(editingExercise?.animationSvg || null);
   const [isSaving, setIsSaving]       = useState(false);
+  const [suggestions, setSuggestions] = useState([]);
+  const [loadingSugg, setLoadingSugg] = useState(false);
 
   // Estado del generador de animación
   const [showAnimModal, setShowAnimModal] = useState(false);
@@ -50,6 +53,41 @@ export default function AddExerciseScreen({ route, navigation }) {
   useLayoutEffect(() => {
     navigation.setOptions({ title: isEditing ? 'Editar ejercicio' : 'Nuevo ejercicio' });
   }, [isEditing]);
+
+  // Buscar ejercicios similares al escribir el nombre
+  async function handleNameChange(text) {
+    setName(text);
+    if (text.trim().length < 3) { setSuggestions([]); return; }
+    setLoadingSugg(true);
+    try {
+      // Buscar en local
+      const localEx = await getAllExercises();
+      // Buscar en el servidor
+      const token = await AsyncStorage.getItem('gymtracker_access_token');
+      let serverEx = [];
+      try {
+        const res = await fetch(`${BASE_URL}/api/exercises`, {
+          headers: { 'Authorization': `Bearer ${token}` },
+        });
+        serverEx = await res.json();
+        if (!Array.isArray(serverEx)) serverEx = [];
+      } catch {}
+
+      const allEx = [
+        ...localEx.map(e => ({ name: e.name, muscleGroup: e.muscleGroup || e.muscle_group, source: 'Personal' })),
+        ...serverEx.map(e => ({ name: e.name, muscleGroup: e.muscle_group, source: 'Gimnasio' })),
+      ];
+
+      const query = text.toLowerCase();
+      const similar = allEx.filter(ex =>
+        ex.name.toLowerCase().includes(query) ||
+        query.split(' ').some(word => word.length >= 3 && ex.name.toLowerCase().includes(word))
+      ).slice(0, 4);
+
+      setSuggestions(similar);
+    } catch {}
+    finally { setLoadingSugg(false); }
+  }
 
   function handleMuscleGroupChange(group) {
     setMuscleGroup(group);
@@ -177,10 +215,40 @@ export default function AddExerciseScreen({ route, navigation }) {
         {/* Nombre */}
         <View style={s.fieldGroup}>
           <Text style={s.fieldLabel}>NOMBRE DEL EJERCICIO *</Text>
-          <TextInput style={s.input} value={name} onChangeText={setName}
+          <TextInput style={s.input} value={name} onChangeText={handleNameChange}
             placeholder="Ej: Press de Banca, Sentadilla..."
             placeholderTextColor={colors.textLight} maxLength={60} />
           <Text style={s.charCount}>{name.length}/60</Text>
+
+          {/* Sugerencias de ejercicios similares */}
+          {suggestions.length > 0 && (
+            <View style={{ marginTop: 8, borderRadius: 12, borderWidth: 1, borderColor: 'rgba(232,181,0,0.3)', backgroundColor: colors.card, overflow: 'hidden' }}>
+              <View style={{ paddingHorizontal: 12, paddingVertical: 7, borderBottomWidth: 0.5, borderBottomColor: colors.border, flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                <Text style={{ fontSize: 11, fontWeight: '800', color: colors.brand, letterSpacing: 1 }}>⚠ EJERCICIOS SIMILARES</Text>
+                {loadingSugg && <ActivityIndicator size="small" color={colors.brand} />}
+              </View>
+              {suggestions.map((ex, i) => (
+                <TouchableOpacity key={i}
+                  style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 12, paddingVertical: 9, borderBottomWidth: i < suggestions.length-1 ? 0.5 : 0, borderBottomColor: colors.border }}
+                  onPress={() => { setName(ex.name); setSuggestions([]); }}
+                >
+                  <View>
+                    <Text style={{ fontSize: 13, fontWeight: '700', color: colors.textPrimary }}>{ex.name}</Text>
+                    <Text style={{ fontSize: 11, color: colors.textSecondary }}>{ex.muscleGroup}</Text>
+                  </View>
+                  <View style={{ paddingHorizontal: 8, paddingVertical: 3, borderRadius: 20, backgroundColor: ex.source === 'Gimnasio' ? 'rgba(232,181,0,0.12)' : 'rgba(96,165,250,0.12)' }}>
+                    <Text style={{ fontSize: 10, fontWeight: '700', color: ex.source === 'Gimnasio' ? colors.brand : '#60A5FA' }}>{ex.source}</Text>
+                  </View>
+                </TouchableOpacity>
+              ))}
+              <TouchableOpacity
+                style={{ padding: 10, alignItems: 'center' }}
+                onPress={() => setSuggestions([])}
+              >
+                <Text style={{ fontSize: 11, color: colors.textSecondary }}>Ignorar sugerencias</Text>
+              </TouchableOpacity>
+            </View>
+          )}
         </View>
 
         {/* Grupo muscular */}

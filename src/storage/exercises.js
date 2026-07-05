@@ -236,6 +236,7 @@ export async function addWeightSession(exerciseId, series, sessionId) {
       serieNumber: i + 1,
       weight:      parseFloat(s.weight) || 0,
       reps:        parseInt(s.reps)     || 0,
+      comment:     s.comment            || '',  // ← comentario por serie
     })),
   };
 
