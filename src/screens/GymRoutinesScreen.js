@@ -17,8 +17,12 @@ export default function GymRoutinesScreen({ navigation }) {
   const { colors } = useTheme();
   const s = makeStyles(colors);
 
-  const [routines, setRoutines] = useState([]);
-  const [loading, setLoading]   = useState(true);
+  const [routines, setRoutines]   = useState([]);
+  const [archived, setArchived]   = useState([]);
+  const [loading, setLoading]     = useState(true);
+  const [tab, setTab]             = useState('active');
+
+  const ARCHIVED_KEY = 'gymtracker_gym_archived_routines';
 
   useFocusEffect(useCallback(() => { load(); }, []));
 
@@ -30,10 +34,32 @@ export default function GymRoutinesScreen({ navigation }) {
         headers: { 'Authorization': `Bearer ${token}` },
       });
       const data = await res.json();
-      // Solo rutinas creadas por otros (el trainer)
-      setRoutines(Array.isArray(data) ? data : []);
-    } catch { setRoutines([]); }
+      const all  = Array.isArray(data) ? data : [];
+
+      // Leer archivadas del storage local
+      const archivedJson = await AsyncStorage.getItem(ARCHIVED_KEY);
+      const archivedIds  = archivedJson ? JSON.parse(archivedJson) : [];
+
+      setRoutines(all.filter(r => !archivedIds.includes(r.id)));
+      setArchived(all.filter(r =>  archivedIds.includes(r.id)));
+    } catch { setRoutines([]); setArchived([]); }
     finally { setLoading(false); }
+  }
+
+  async function handleArchive(routine) {
+    const archivedJson = await AsyncStorage.getItem(ARCHIVED_KEY);
+    const archivedIds  = archivedJson ? JSON.parse(archivedJson) : [];
+    if (!archivedIds.includes(routine.id)) {
+      await AsyncStorage.setItem(ARCHIVED_KEY, JSON.stringify([...archivedIds, routine.id]));
+    }
+    await load();
+  }
+
+  async function handleUnarchive(routine) {
+    const archivedJson = await AsyncStorage.getItem(ARCHIVED_KEY);
+    const archivedIds  = archivedJson ? JSON.parse(archivedJson) : [];
+    await AsyncStorage.setItem(ARCHIVED_KEY, JSON.stringify(archivedIds.filter(id => id !== routine.id)));
+    await load();
   }
 
   return (
@@ -43,22 +69,45 @@ export default function GymRoutinesScreen({ navigation }) {
       <View style={s.header}>
         <Text style={s.gymName}>GYMTRACKER</Text>
         <Text style={s.title}>Rutinas del gimnasio</Text>
-        <Text style={s.subtitle}>{routines.length} rutina{routines.length!==1?'s':''} asignada{routines.length!==1?'s':''}</Text>
+        <Text style={s.subtitle}>{routines.length} rutina{routines.length!==1?'s':''} activa{routines.length!==1?'s':''}</Text>
+      </View>
+
+      {/* Tabs */}
+      <View style={{ flexDirection:'row', borderBottomWidth:0.5, borderBottomColor:colors.border }}>
+        {[
+          { id:'active',   label:'📋 Activas',  count: routines.length },
+          { id:'archived', label:'📦 Historial', count: archived.length },
+        ].map(t => (
+          <TouchableOpacity key={t.id} onPress={() => setTab(t.id)}
+            style={{ flex:1, flexDirection:'row', alignItems:'center', justifyContent:'center', gap:6, paddingVertical:12,
+              borderBottomWidth:2, borderBottomColor: tab===t.id ? colors.brand : 'transparent' }}>
+            <Text style={{ fontSize:13, fontWeight:'700', color: tab===t.id ? colors.brand : colors.textSecondary }}>
+              {t.label}
+            </Text>
+            {t.count > 0 && (
+              <View style={{ paddingHorizontal:7, paddingVertical:2, borderRadius:20, backgroundColor: tab===t.id ? 'rgba(232,181,0,0.15)' : colors.background }}>
+                <Text style={{ fontSize:11, fontWeight:'800', color: tab===t.id ? colors.brand : colors.textSecondary }}>{t.count}</Text>
+              </View>
+            )}
+          </TouchableOpacity>
+        ))}
       </View>
 
       {loading ? (
         <ActivityIndicator style={{ flex: 1 }} color={colors.brand} size="large" />
-      ) : routines.length === 0 ? (
+      ) : (tab === 'active' ? routines : archived).length === 0 ? (
         <View style={s.empty}>
-          <Text style={{ fontSize: 52, marginBottom: 16 }}>📋</Text>
-          <Text style={[s.emptyTitle, { color: colors.textPrimary }]}>Sin rutinas asignadas</Text>
+          <Text style={{ fontSize: 52, marginBottom: 16 }}>{tab === 'active' ? '📋' : '📦'}</Text>
+          <Text style={[s.emptyTitle, { color: colors.textPrimary }]}>
+            {tab === 'active' ? 'Sin rutinas activas' : 'El historial está vacío'}
+          </Text>
           <Text style={[s.emptySub, { color: colors.textSecondary }]}>
-            Tu entrenador todavía no te asignó ninguna rutina.
+            {tab === 'active' ? 'Tu entrenador todavía no te asignó ninguna rutina.' : 'Las rutinas que archives aparecerán acá.'}
           </Text>
         </View>
       ) : (
         <FlatList
-          data={routines}
+          data={tab === 'active' ? routines : archived}
           keyExtractor={item => item.id}
           contentContainerStyle={{ padding: 16, paddingBottom: 30 }}
           showsVerticalScrollIndicator={false}
@@ -66,20 +115,27 @@ export default function GymRoutinesScreen({ navigation }) {
             const days = item.days || [];
             const activeDays = days.filter(d => (d.exercises||d.Exercises||[]).length > 0);
             const totalEx = activeDays.reduce((a,d) => a + (d.exercises||d.Exercises||[]).length, 0);
+            const isArchived = tab === 'archived';
 
             return (
               <TouchableOpacity
-                style={[s.card, { backgroundColor: colors.card, borderColor: colors.border }]}
+                style={[s.card, { backgroundColor: colors.card, borderColor: colors.border, opacity: isArchived ? 0.75 : 1 }]}
                 onPress={() => navigation.navigate('GymRoutineDetail', { routineId: item.id, routineName: item.name, readonly: true })}
                 activeOpacity={0.85}
               >
                 <View style={s.cardTop}>
-                  {/* Barra de color */}
-                  <View style={{ height: 3, backgroundColor: colors.brand, marginBottom: 12, borderRadius: 2 }} />
+                  <View style={{ height: 3, backgroundColor: isArchived ? colors.border : colors.brand, marginBottom: 12, borderRadius: 2 }} />
                   <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                     <View style={{ flex: 1 }}>
-                      <Text style={[s.routineName, { color: colors.textPrimary }]}>{item.name}</Text>
-                      <View style={{ flexDirection: 'row', gap: 8, marginTop: 6, flexWrap: 'wrap' }}>
+                      <View style={{ flexDirection:'row', alignItems:'center', gap:8, marginBottom:4 }}>
+                        <Text style={[s.routineName, { color: colors.textPrimary }]}>{item.name}</Text>
+                        {isArchived && (
+                          <View style={{ paddingHorizontal:7, paddingVertical:2, borderRadius:20, backgroundColor:'rgba(136,136,136,0.15)' }}>
+                            <Text style={{ fontSize:9, color:colors.textSecondary, fontWeight:'700' }}>ARCHIVADA</Text>
+                          </View>
+                        )}
+                      </View>
+                      <View style={{ flexDirection: 'row', gap: 8, flexWrap: 'wrap' }}>
                         {[`📅 ${item.weeks} sem.`, `🏋️ ${activeDays.length} días/sem`, `≡ ${totalEx} ejercicios`].map((t,i) => (
                           <View key={i} style={[s.metaChip, { backgroundColor: colors.background, borderColor: colors.border }]}>
                             <Text style={{ fontSize: 11, color: colors.textSecondary }}>{t}</Text>
@@ -87,22 +143,20 @@ export default function GymRoutinesScreen({ navigation }) {
                         ))}
                       </View>
                     </View>
-                    {/* Badge solo lectura */}
                     <View style={[s.readonlyBadge, { backgroundColor: 'rgba(96,165,250,0.1)', borderColor: 'rgba(96,165,250,0.3)' }]}>
                       <Text style={{ fontSize: 10, color: '#60A5FA', fontWeight: '700' }}>👁 Solo lectura</Text>
                     </View>
                   </View>
 
-                  {/* Días */}
                   <View style={{ flexDirection: 'row', gap: 4, marginTop: 12 }}>
                     {Object.entries(DIAS_SHORT).map(([day, short]) => {
                       const active = activeDays.some(d => d.dayName === day || d.day_name === day);
                       return (
                         <View key={day} style={[s.dayChip, {
-                          backgroundColor: active ? 'rgba(232,181,0,0.15)' : colors.background,
-                          borderColor:     active ? 'rgba(232,181,0,0.4)' : colors.border,
+                          backgroundColor: active ? (isArchived ? 'rgba(136,136,136,0.1)' : 'rgba(232,181,0,0.15)') : colors.background,
+                          borderColor:     active ? (isArchived ? 'rgba(136,136,136,0.3)' : 'rgba(232,181,0,0.4)') : colors.border,
                         }]}>
-                          <Text style={{ fontSize: 9, fontWeight: '800', color: active ? colors.brand : colors.textLight }}>
+                          <Text style={{ fontSize: 9, fontWeight: '800', color: active ? (isArchived ? colors.textSecondary : colors.brand) : colors.textLight }}>
                             {short}
                           </Text>
                         </View>
@@ -110,13 +164,33 @@ export default function GymRoutinesScreen({ navigation }) {
                     })}
                   </View>
 
-                  <TouchableOpacity
-                    style={[s.startBtn, { backgroundColor: colors.brand }]}
-                    onPress={() => navigation.navigate('GymRoutineDetail', { routineId: item.id, routineName: item.name, readonly: true })}
-                    activeOpacity={0.85}
-                  >
-                    <Text style={{ color: '#0A0A0A', fontWeight: '900', fontSize: 14 }}>▶ Ver rutina</Text>
-                  </TouchableOpacity>
+                  {/* Footer */}
+                  <View style={{ flexDirection:'row', gap:10, marginTop:12 }}>
+                    {isArchived ? (
+                      <TouchableOpacity
+                        style={[s.startBtn, { backgroundColor: colors.background, borderWidth:1, borderColor:colors.border }]}
+                        onPress={() => handleUnarchive(item)} activeOpacity={0.85}
+                      >
+                        <Text style={{ color: colors.brand, fontWeight: '700', fontSize: 13 }}>↩ Restaurar</Text>
+                      </TouchableOpacity>
+                    ) : (
+                      <>
+                        <TouchableOpacity
+                          style={[s.startBtn, { flex:1, backgroundColor: 'rgba(136,136,136,0.1)', borderWidth:1, borderColor:colors.border }]}
+                          onPress={() => handleArchive(item)} activeOpacity={0.85}
+                        >
+                          <Text style={{ color: colors.textSecondary, fontWeight: '700', fontSize: 13 }}>📦 Archivar</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          style={[s.startBtn, { flex:2, backgroundColor: colors.brand }]}
+                          onPress={() => navigation.navigate('GymRoutineDetail', { routineId: item.id, routineName: item.name, readonly: true })}
+                          activeOpacity={0.85}
+                        >
+                          <Text style={{ color: '#0A0A0A', fontWeight: '900', fontSize: 14 }}>▶ Ver rutina</Text>
+                        </TouchableOpacity>
+                      </>
+                    )}
+                  </View>
                 </View>
               </TouchableOpacity>
             );
