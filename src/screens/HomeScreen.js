@@ -6,7 +6,6 @@ import {
 import { useFocusEffect } from '@react-navigation/native';
 import { getAllExercises, TRACKING_TYPES } from '../storage/exercises';
 import { useTheme } from '../theme/ThemeContext';
-import RoleSwitcher from '../components/RoleSwitcher';
 
 const GYM_NAME = 'GymTracker';
 
@@ -51,12 +50,9 @@ export default function HomeScreen({ navigation }) {
             <Text style={s.gymName}>{GYM_NAME.toUpperCase()}</Text>
             <Text style={s.headerTitle}>Mis Ejercicios</Text>
           </View>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-            <RoleSwitcher />
-            <TouchableOpacity style={s.addBtn} onPress={() => navigation.navigate('AddExercise')} activeOpacity={0.8}>
-              <Text style={s.addBtnText}>+</Text>
-            </TouchableOpacity>
-          </View>
+          <TouchableOpacity style={s.addBtn} onPress={() => navigation.navigate('AddExercise')} activeOpacity={0.8}>
+            <Text style={s.addBtnText}>+</Text>
+          </TouchableOpacity>
         </View>
         <View style={s.headerStats}>
           <HeaderStat value={exercises.length} label="ejercicios" colors={colors} />
