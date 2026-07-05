@@ -1,4 +1,5 @@
 import React, { useState, useEffect, createContext, useContext } from 'react';
+import * as Updates from 'expo-updates';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
@@ -198,7 +199,21 @@ function AppContent() {
   const [user, setUser]                 = useState(null);
   const [isChecking, setIsChecking]     = useState(true);
 
-  useEffect(() => { checkSession(); }, []);
+  useEffect(() => {
+    checkSession();
+    checkForUpdates();
+  }, []);
+
+  async function checkForUpdates() {
+    try {
+      if (__DEV__) return; // No checkear en desarrollo
+      const update = await Updates.checkForUpdateAsync();
+      if (update.isAvailable) {
+        await Updates.fetchUpdateAsync();
+        await Updates.reloadAsync();
+      }
+    } catch {}
+  }
 
   async function checkSession() {
     try {
