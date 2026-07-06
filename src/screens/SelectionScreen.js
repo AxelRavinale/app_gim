@@ -22,7 +22,7 @@ export default function SelectionScreen({ navigation }) {
       {/* Header */}
       <View style={s.header}>
         <Image
-          source={require('../../assets/icon.png')}
+          source={require('../../assets/logo_circle.png')}
           style={s.logo}
           resizeMode="contain"
         />
