@@ -26,7 +26,6 @@ export default function SelectionScreen({ navigation }) {
           style={s.logo}
           resizeMode="contain"
         />
-        <Text style={s.appName}>GYMTRACKER</Text>
         <Text style={s.subtitle}>¿Qué vas a hacer hoy?</Text>
       </View>
 
