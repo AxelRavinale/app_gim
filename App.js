@@ -27,6 +27,7 @@ import NoGymScreen               from './src/screens/NoGymScreen';
 import TrainingSelectionScreen   from './src/screens/TrainingSelectionScreen';
 import GymHomeScreen           from './src/screens/GymHomeScreen';
 import GymRoutinesScreen       from './src/screens/GymRoutinesScreen';
+import GymCardioScreen         from './src/screens/GymCardioScreen';
 import CardioScreen          from './src/screens/CardioScreen';
 import CardioTimerScreen     from './src/screens/CardioTimerScreen';
 
@@ -189,6 +190,7 @@ function MainApp() {
         <Stack.Screen name="Cardio"       component={CardioScreen} />
         <Stack.Screen name="JoinGym"      component={(props) => <JoinGymScreen {...props} onJoined={() => props.navigation.goBack()} />} options={{ headerShown: false }} />
         <Stack.Screen name="CardioTimer"  component={CardioTimerScreen} />
+        <Stack.Screen name="GymCardio"    component={GymCardioScreen} options={{ headerShown:false }} />
       </Stack.Navigator>
     </NavigationContainer>
   );
