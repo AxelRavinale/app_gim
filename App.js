@@ -29,6 +29,7 @@ import GymHomeScreen           from './src/screens/GymHomeScreen';
 import GymRoutinesScreen       from './src/screens/GymRoutinesScreen';
 import GymCardioScreen         from './src/screens/GymCardioScreen';
 import CardioSelectionScreen   from './src/screens/CardioSelectionScreen';
+import RunRouteScreen          from './src/screens/RunRouteScreen';
 import CardioScreen          from './src/screens/CardioScreen';
 import CardioTimerScreen     from './src/screens/CardioTimerScreen';
 

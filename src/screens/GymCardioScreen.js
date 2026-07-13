@@ -26,18 +26,24 @@ export default function GymCardioScreen({ navigation }) {
   const [plans, setPlans]   = useState([]);
   const [loading, setLoading] = useState(true);
 
+  const [routes, setRoutes] = useState([]);
+  const [activeTab, setActiveTab] = useState('plans');
+
   useFocusEffect(useCallback(() => { load(); }, []));
 
   async function load() {
     setLoading(true);
     try {
       const token = await AsyncStorage.getItem('gymtracker_access_token');
-      const res   = await fetch(`${BASE_URL}/api/cardio/my-plans`, {
-        headers: { 'Authorization': `Bearer ${token}` },
-      });
-      const data = await res.json();
-      setPlans(Array.isArray(data) ? data : []);
-    } catch { setPlans([]); }
+      const [plansRes, routesRes] = await Promise.all([
+        fetch(`${BASE_URL}/api/cardio/my-plans`, { headers: { 'Authorization': `Bearer ${token}` } }),
+        fetch(`${BASE_URL}/api/routes/my-routes`, { headers: { 'Authorization': `Bearer ${token}` } }),
+      ]);
+      const plansData  = await plansRes.json();
+      const routesData = await routesRes.json();
+      setPlans(Array.isArray(plansData)  ? plansData  : []);
+      setRoutes(Array.isArray(routesData) ? routesData : []);
+    } catch { setPlans([]); setRoutes([]); }
     finally { setLoading(false); }
   }
 
@@ -65,12 +71,80 @@ export default function GymCardioScreen({ navigation }) {
     <View style={s.container}>
       <View style={s.header}>
         <Text style={s.gymName}>GYMTRACKER</Text>
-        <Text style={s.title}>Planes de cardio</Text>
-        <Text style={s.subtitle}>{plans.length} plan{plans.length!==1?'es':''} asignado{plans.length!==1?'s':''}</Text>
+        <Text style={s.title}>Cardio del gimnasio</Text>
+      </View>
+
+      {/* Tabs */}
+      <View style={{ flexDirection:'row', borderBottomWidth:0.5, borderBottomColor:colors.border }}>
+        {[['plans','⚡ Circuitos',plans.length],['routes','🗺️ Rutas',routes.length]].map(([id,label,count]) => (
+          <TouchableOpacity key={id} onPress={() => setActiveTab(id)}
+            style={{ flex:1, flexDirection:'row', alignItems:'center', justifyContent:'center', gap:6, paddingVertical:12,
+              borderBottomWidth:2, borderBottomColor: activeTab===id ? colors.brand : 'transparent' }}>
+            <Text style={{ fontSize:13, fontWeight:'700', color: activeTab===id ? colors.brand : colors.textSecondary }}>
+              {label}
+            </Text>
+            {count > 0 && (
+              <View style={{ paddingHorizontal:7, paddingVertical:2, borderRadius:20, backgroundColor: activeTab===id ? 'rgba(232,181,0,0.15)' : colors.background }}>
+                <Text style={{ fontSize:11, fontWeight:'800', color: activeTab===id ? colors.brand : colors.textSecondary }}>{count}</Text>
+              </View>
+            )}
+          </TouchableOpacity>
+        ))}
       </View>
 
       {loading ? (
         <ActivityIndicator style={{ flex:1 }} color={colors.brand} size="large" />
+      ) : activeTab === 'routes' ? (
+        // ── RUTAS ──────────────────────────────────────────────────────────
+        routes.length === 0 ? (
+          <View style={s.empty}>
+            <Text style={{ fontSize:52, marginBottom:16 }}>🗺️</Text>
+            <Text style={[s.emptyTitle, { color:colors.textPrimary }]}>Sin rutas asignadas</Text>
+            <Text style={[s.emptySub, { color:colors.textSecondary }]}>
+              Tu entrenador todavía no te asignó ninguna ruta.
+            </Text>
+          </View>
+        ) : (
+          <FlatList
+            data={routes}
+            keyExtractor={item => item.id}
+            contentContainerStyle={{ padding:16, paddingBottom:30 }}
+            showsVerticalScrollIndicator={false}
+            renderItem={({ item }) => {
+              const distM = item.distance_m || 0;
+              const distStr = distM >= 1000 ? `${(distM/1000).toFixed(2)} km` : `${Math.round(distM)} m`;
+              return (
+                <View style={[s.card, { backgroundColor:colors.card, borderColor:colors.border }]}>
+                  <View style={[s.cardBar, { backgroundColor:'#22C55E' }]} />
+                  <View style={s.cardContent}>
+                    <View style={s.cardHeader}>
+                      <View style={[s.typeIcon, { backgroundColor:'rgba(34,197,94,0.12)' }]}>
+                        <Text style={{ fontSize:22 }}>🗺️</Text>
+                      </View>
+                      <View style={{ flex:1 }}>
+                        <Text style={[s.planName, { color:colors.textPrimary }]}>{item.name}</Text>
+                        <View style={{ flexDirection:'row', gap:8, marginTop:4 }}>
+                          <Text style={[s.meta, { color:'#22C55E', fontWeight:'700' }]}>📍 {distStr}</Text>
+                          <Text style={[s.meta, { color:colors.textSecondary }]}>· {(item.coordinates||[]).length} puntos</Text>
+                        </View>
+                      </View>
+                    </View>
+                    {item.description ? (
+                      <Text style={[s.desc, { color:colors.textSecondary }]}>{item.description}</Text>
+                    ) : null}
+                    <TouchableOpacity
+                      style={[s.startBtn, { backgroundColor:'#22C55E' }]}
+                      onPress={() => navigation.navigate('RunRoute', { route: item })}
+                      activeOpacity={0.85}
+                    >
+                      <Text style={{ color:'#0A0A0A', fontWeight:'900', fontSize:15 }}>▶ Correr esta ruta</Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              );
+            }}
+          />
+        )
       ) : plans.length === 0 ? (
         <View style={s.empty}>
           <Text style={{ fontSize:52, marginBottom:16 }}>🏃</Text>
