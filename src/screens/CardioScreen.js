@@ -252,7 +252,7 @@ export default function CardioScreen({ navigation }) {
           <Text style={{ color: colors.brand, fontSize: 22 }}>←</Text>
         </TouchableOpacity>
         <Text style={[s.headerTitle, { color: colors.textPrimary }]}>Cardio</Text>
-        {/* Botón circuito */
+        {/* Botón circuito */}
         <TouchableOpacity
           style={{ paddingHorizontal:10, paddingVertical:7, borderRadius:10, backgroundColor:'rgba(232,181,0,0.15)', borderWidth:1, borderColor:'rgba(232,181,0,0.4)' }}
           onPress={() => navigation.navigate('CardioTimer')}
