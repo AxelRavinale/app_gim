@@ -8,6 +8,35 @@ const GYM_NAME = 'GymTracker';
 export default function SettingsScreen({ navigation }) {
   const { colors, isDark, themePreference, setThemePreference, toggleTheme } = useTheme();
   const { user, logout } = useSession() || {};
+  const [syncing, setSyncing] = useState(false);
+  const [syncResult, setSyncResult] = useState(null);
+
+  async function handleSync() {
+    setSyncing(true); setSyncResult(null);
+    try {
+      // Traer ejercicios del storage local
+      const { getAllExercises } = require('../storage/exercises');
+      const localExercises = await getAllExercises();
+      if (localExercises.length === 0) {
+        Alert.alert('Sin datos', 'No hay ejercicios locales para sincronizar.');
+        setSyncing(false); return;
+      }
+      const token = await AsyncStorage.getItem('gymtracker_access_token');
+      const res   = await fetch('https://gimnasio-production-7475.up.railway.app/api/exercises/sync', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body:    JSON.stringify({ exercises: localExercises }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Error al sincronizar');
+      const count = Array.isArray(data) ? data.length : localExercises.length;
+      setSyncResult({ success: true, count });
+      Alert.alert('✅ Sincronizado', `${count} ejercicio${count!==1?'s':''} subido${count!==1?'s':''} al servidor.`);
+    } catch (err) {
+      setSyncResult({ success: false });
+      Alert.alert('Error', err.message || 'No se pudo sincronizar');
+    } finally { setSyncing(false); }
+  }
   const s = makeStyles(colors);
 
   const themeOptions = [
@@ -128,6 +157,45 @@ export default function SettingsScreen({ navigation }) {
         <InfoRow label="Versión"  value="1.0.0"             colors={colors} />
         <InfoRow label="Stack"    value="React Native + Expo" colors={colors} />
         <InfoRow label="Backend"  value="Railway + PostgreSQL" colors={colors} last />
+      </View>
+
+      {/* Panel web */}
+      <SectionTitle title="PANEL WEB" colors={colors} />
+      <View style={s.card}>
+        <TouchableOpacity
+          style={s.logoutBtn}
+          onPress={() => Linking.openURL('https://gymtracker-backend-five.vercel.app')}
+          activeOpacity={0.8}
+        >
+          <Text style={{ fontSize: 18 }}>🌐</Text>
+          <View style={{ flex: 1 }}>
+            <Text style={[s.logoutText, { color: colors.textPrimary }]}>Ir al panel web</Text>
+            <Text style={{ fontSize: 11, color: colors.textSecondary, marginTop: 2 }}>Gestión completa desde el navegador</Text>
+          </View>
+          <Text style={{ color: colors.brand, fontSize: 16 }}>→</Text>
+        </TouchableOpacity>
+
+        <View style={{ height: 0.5, backgroundColor: colors.border, marginHorizontal: 14 }} />
+
+        <TouchableOpacity
+          style={s.logoutBtn}
+          onPress={handleSync}
+          disabled={syncing}
+          activeOpacity={0.8}
+        >
+          <Text style={{ fontSize: 18 }}>{syncing ? '⏳' : '☁️'}</Text>
+          <View style={{ flex: 1 }}>
+            <Text style={[s.logoutText, { color: colors.textPrimary }]}>
+              {syncing ? 'Sincronizando...' : 'Subir datos al servidor'}
+            </Text>
+            <Text style={{ fontSize: 11, color: colors.textSecondary, marginTop: 2 }}>
+              {syncResult?.success
+                ? `✅ ${syncResult.count} ejercicio${syncResult.count!==1?'s':''} sincronizado${syncResult.count!==1?'s':''}`
+                : 'Exportar ejercicios locales a la web'}
+            </Text>
+          </View>
+          <Text style={{ color: colors.brand, fontSize: 16 }}>↑</Text>
+        </TouchableOpacity>
       </View>
 
       {/* Cerrar sesión */}
