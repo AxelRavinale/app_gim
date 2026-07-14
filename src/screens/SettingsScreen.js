@@ -1,9 +1,7 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Switch, ScrollView, StatusBar, Linking, Alert } from 'react-native';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { View, Text, StyleSheet, TouchableOpacity, Switch, ScrollView, StatusBar } from 'react-native';
 import { useTheme } from '../theme/ThemeContext';
 import { useSession } from '../context/SessionContext';
-import { getAllExercises } from '../storage/exercises';
 
 const GYM_NAME = 'GymTracker';
 
@@ -169,11 +167,10 @@ export default function SettingsScreen({ navigation }) {
       <View style={s.card}>
         <TouchableOpacity
           style={s.logoutBtn}
-          onPress={async () => {
-            const url = 'https://gymtracker-backend-five.vercel.app';
-            const supported = await Linking.canOpenURL(url);
-            if (supported) await Linking.openURL(url);
-            else Alert.alert('Error', 'No se pudo abrir el navegador');
+          onPress={() => {
+            Linking.openURL('https://gymtracker-backend-five.vercel.app').catch(() => {
+              Alert.alert('Error', 'No se pudo abrir el navegador');
+            });
           }}
           activeOpacity={0.8}
         >
