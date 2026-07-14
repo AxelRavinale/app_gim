@@ -166,24 +166,25 @@ export default function SettingsScreen({ navigation }) {
       <SectionTitle title="PANEL WEB" colors={colors} />
       <View style={s.card}>
         <TouchableOpacity
-          style={s.logoutBtn}
+          style={[s.webBtn, { borderColor: 'rgba(232,181,0,0.3)', backgroundColor: 'rgba(232,181,0,0.06)' }]}
           onPress={async () => {
             const url = 'https://gymtracker-backend-five.vercel.app';
             const supported = await Linking.canOpenURL(url);
-            if (supported) {
-              await Linking.openURL(url);
-            } else {
-              Alert.alert('Error', 'No se pudo abrir el navegador');
-            }
+            if (supported) await Linking.openURL(url);
+            else Alert.alert('Error', 'No se pudo abrir el navegador');
           }}
           activeOpacity={0.8}
         >
-          <Text style={{ fontSize: 18 }}>🌐</Text>
+          <Text style={{ fontSize: 20 }}>🌐</Text>
           <View style={{ flex: 1 }}>
-            <Text style={[s.logoutText, { color: colors.textPrimary }]}>Ir al panel web</Text>
-            <Text style={{ fontSize: 11, color: colors.textSecondary, marginTop: 2 }}>Gestión completa desde el navegador</Text>
+            <Text style={[s.webBtnTitle, { color: colors.brand }]}>Ver en la web</Text>
+            <Text style={[s.webBtnSub, { color: colors.textSecondary }]}>
+              gymtracker-backend-five.vercel.app
+            </Text>
           </View>
-          <Text style={{ color: colors.brand, fontSize: 16 }}>→</Text>
+          <View style={[s.webBtnArrow, { backgroundColor: colors.brand }]}>
+            <Text style={{ color: '#0A0A0A', fontSize: 14, fontWeight: '900' }}>→</Text>
+          </View>
         </TouchableOpacity>
 
         <View style={{ height: 0.5, backgroundColor: colors.border, marginHorizontal: 14 }} />
