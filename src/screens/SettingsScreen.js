@@ -14,26 +14,30 @@ export default function SettingsScreen({ navigation }) {
   async function handleSync() {
     setSyncing(true); setSyncResult(null);
     try {
-      // Traer ejercicios del storage local
       const localExercises = await getAllExercises();
-      if (localExercises.length === 0) {
+      if (!localExercises || localExercises.length === 0) {
         Alert.alert('Sin datos', 'No hay ejercicios locales para sincronizar.');
-        setSyncing(false); return;
+        return;
       }
       const token = await AsyncStorage.getItem('gymtracker_access_token');
-      const res   = await fetch('https://gimnasio-production-7475.up.railway.app/api/exercises/sync', {
+      if (!token) {
+        Alert.alert('Error', 'No estás autenticado. Cerrá sesión e iniciá de nuevo.');
+        return;
+      }
+      const res = await fetch('https://gimnasio-production-7475.up.railway.app/api/exercises/sync', {
         method:  'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
         body:    JSON.stringify({ exercises: localExercises }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Error al sincronizar');
-      const count = Array.isArray(data) ? data.length : localExercises.length;
+      if (!res.ok) throw new Error(data.error || `Error ${res.status}`);
+      const count = data.synced || localExercises.length;
       setSyncResult({ success: true, count });
       Alert.alert('✅ Sincronizado', `${count} ejercicio${count!==1?'s':''} subido${count!==1?'s':''} al servidor.`);
     } catch (err) {
+      console.error('Sync error:', err);
       setSyncResult({ success: false });
-      Alert.alert('Error', err.message || 'No se pudo sincronizar');
+      Alert.alert('Error de sincronización', err.message || 'No se pudo conectar al servidor');
     } finally { setSyncing(false); }
   }
   const s = makeStyles(colors);
@@ -163,7 +167,15 @@ export default function SettingsScreen({ navigation }) {
       <View style={s.card}>
         <TouchableOpacity
           style={s.logoutBtn}
-          onPress={() => Linking.openURL('https://gymtracker-backend-five.vercel.app')}
+          onPress={async () => {
+            const url = 'https://gymtracker-backend-five.vercel.app';
+            const supported = await Linking.canOpenURL(url);
+            if (supported) {
+              await Linking.openURL(url);
+            } else {
+              Alert.alert('Error', 'No se pudo abrir el navegador');
+            }
+          }}
           activeOpacity={0.8}
         >
           <Text style={{ fontSize: 18 }}>🌐</Text>
