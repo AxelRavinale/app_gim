@@ -189,10 +189,12 @@ function MainApp() {
           )}
         </Stack.Screen>
 
-        <Stack.Screen name="Cardio"       component={CardioScreen} />
-        <Stack.Screen name="JoinGym"      component={(props) => <JoinGymScreen {...props} onJoined={() => props.navigation.goBack()} />} options={{ headerShown: false }} />
-        <Stack.Screen name="CardioTimer"  component={CardioTimerScreen} />
-        <Stack.Screen name="GymCardio"    component={GymCardioScreen} options={{ headerShown:false }} />
+        <Stack.Screen name="Cardio"         component={CardioSelectionScreen} options={{ headerShown:false }} />
+        <Stack.Screen name="CardioPersonal" component={CardioScreen}           options={{ headerShown:false }} />
+        <Stack.Screen name="CardioTimer"    component={CardioTimerScreen}      options={{ headerShown:false }} />
+        <Stack.Screen name="GymCardio"      component={GymCardioScreen}        options={{ headerShown:false }} />
+        <Stack.Screen name="RunRoute"       component={RunRouteScreen}         options={{ headerShown:false }} />
+        <Stack.Screen name="JoinGym"        component={(props) => <JoinGymScreen {...props} onJoined={() => props.navigation.goBack()} />} options={{ headerShown:false }} />
       </Stack.Navigator>
     </NavigationContainer>
   );

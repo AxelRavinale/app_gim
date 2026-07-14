@@ -15,7 +15,6 @@ export default function SettingsScreen({ navigation }) {
     setSyncing(true); setSyncResult(null);
     try {
       // Traer ejercicios del storage local
-      const { getAllExercises } = require('../storage/exercises');
       const localExercises = await getAllExercises();
       if (localExercises.length === 0) {
         Alert.alert('Sin datos', 'No hay ejercicios locales para sincronizar.');
