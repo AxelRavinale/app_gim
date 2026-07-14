@@ -1,6 +1,7 @@
-import React, { useState, useEffect, createContext, useContext } from 'react';
+import React, { useState, useEffect } from 'react';
 import * as Updates from 'expo-updates';
 import { NavigationContainer } from '@react-navigation/native';
+import { SessionProvider, useSession } from './src/context/SessionContext';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { StatusBar } from 'expo-status-bar';
@@ -35,10 +36,6 @@ import CardioTimerScreen     from './src/screens/CardioTimerScreen';
 
 import { ThemeProvider, useTheme } from './src/theme/ThemeContext';
 import { authAPI, getSavedUser }   from './src/services/api';
-
-// ── SessionContext — acceso global a user y logout ────────────────────────────
-const SessionContext = createContext(null);
-export const useSession = () => useContext(SessionContext);
 
 function buildScreenOptions(colors) {
   return {
@@ -194,7 +191,7 @@ function MainApp() {
         <Stack.Screen name="CardioTimer"    component={CardioTimerScreen}      options={{ headerShown:false }} />
         <Stack.Screen name="GymCardio"      component={GymCardioScreen}        options={{ headerShown:false }} />
         <Stack.Screen name="RunRoute"       component={RunRouteScreen}         options={{ headerShown:false }} />
-        <Stack.Screen name="JoinGym"        component={(props) => <JoinGymScreen {...props} onJoined={() => props.navigation.goBack()} />} options={{ headerShown:false }} />
+        <Stack.Screen name="JoinGym"        component={JoinGymScreen} options={{ headerShown:false }} />
       </Stack.Navigator>
     </NavigationContainer>
   );
@@ -282,16 +279,16 @@ function AppContent() {
   if (!user) return <LoginScreen onLoginSuccess={handleUserChange} />;
 
   return (
-    <SessionContext.Provider value={{ user, logout: handleLogout, updateUser: handleUserChange }}>
-      <MainApp />
-    </SessionContext.Provider>
+    <MainApp />
   );
 }
 
 export default function App() {
   return (
     <ThemeProvider>
-      <AppContent />
+      <SessionProvider>
+        <AppContent />
+      </SessionProvider>
     </ThemeProvider>
   );
 }

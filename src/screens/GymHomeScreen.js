@@ -9,7 +9,7 @@ import {
 import { useFocusEffect } from '@react-navigation/native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useTheme } from '../theme/ThemeContext';
-import { useSession } from '../../App';
+import { useSession } from '../context/SessionContext';
 
 const BASE_URL = 'https://gimnasio-production-7475.up.railway.app';
 

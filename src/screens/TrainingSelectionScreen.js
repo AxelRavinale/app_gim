@@ -7,7 +7,7 @@ import {
   Platform, StatusBar,
 } from 'react-native';
 import { useTheme } from '../theme/ThemeContext';
-import { useSession } from '../../App';
+import { useSession } from '../context/SessionContext';
 
 export default function TrainingSelectionScreen({ navigation }) {
   const { colors } = useTheme();

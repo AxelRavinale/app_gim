@@ -1,7 +1,7 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Switch, ScrollView, StatusBar } from 'react-native';
 import { useTheme } from '../theme/ThemeContext';
-import { useSession } from '../../App';
+import { useSession } from '../context/SessionContext';
 
 const GYM_NAME = 'GymTracker';
 
