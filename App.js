@@ -106,47 +106,40 @@ function MainApp() {
         {/* Selección Gimnasio / Personal */}
         <Stack.Screen name="Training" component={TrainingSelectionScreen} />
 
-        {/* GymTraining — Stack con tabs del gimnasio */}
+        {/* GymTraining — Stack con hamburger menu */}
         <Stack.Screen name="GymTraining">
           {() => {
             const GymStack = createNativeStackNavigator();
+            const GYM_ITEMS = [
+              { id: 'GymExercisesTab', icon: '🏋️', label: 'Ejercicios' },
+              { id: 'GymRoutinesTab',  icon: '📋', label: 'Rutinas' },
+              { id: 'PaymentTab',      icon: '💳', label: 'Mi cuota' },
+              { id: 'SettingsGymTab',  icon: '⚙️', label: 'Ajustes' },
+            ];
             return (
-              <GymStack.Navigator screenOptions={{ headerShown: false }}>
-                <GymStack.Screen name="GymTabs">
-                  {() => (
-                    <Tab.Navigator
-        screenOptions={({ route }) => ({
-          headerShown: false,
-          tabBarIcon: ({ focused }) => (
-            <Text style={{ fontSize: focused ? 20 : 16 }}>
-              {ROLE_ICONS[route.name] || '•'}
-            </Text>
-          ),
-          tabBarActiveTintColor:   colors.brand,
-          tabBarInactiveTintColor: colors.textLight,
-          tabBarStyle: {
-            backgroundColor: colors.card,
-            borderTopColor:  colors.border,
-            borderTopWidth:  0.5,
-            paddingBottom:   6,
-            paddingTop:      4,
-            height:          62,
-          },
-          tabBarLabelStyle: { fontSize: 10, fontWeight: '700' },
-        })}
-      >
-        <Tab.Screen name="ExercisesTab"    component={ExercisesStack}    options={{ tabBarLabel: 'Ejercicios' }} />
-        <Tab.Screen name="RoutinesTab"     component={RoutinesStack}     options={{ tabBarLabel: 'Rutinas' }} />
-        <Tab.Screen name="StatsTab"        component={StatsStack}        options={{ tabBarLabel: 'Stats' }} />
-        <Tab.Screen name="TimerTab"        component={TimerStack}        options={{ tabBarLabel: 'Timer' }} />
-        <Tab.Screen name="AchievementsTab" component={AchievementsStack} options={{ tabBarLabel: 'Logros' }} />
-        <Tab.Screen name="PaymentTab"      component={PaymentStack}      options={{ tabBarLabel: 'Mi cuota' }} />
-        <Tab.Screen name="SettingsTab"     component={SettingsStack}     options={{ tabBarLabel: 'Ajustes' }} />
-            </Tab.Navigator>
-                  )}
-                </GymStack.Screen>
-                <GymStack.Screen name="Detail"         component={DetailScreen}          options={{ title: 'Ejercicio' }} />
-                <GymStack.Screen name="ExecuteRoutine" component={ExecuteRoutineScreen}  options={{ headerShown: false }} />
+              <GymStack.Navigator
+                initialRouteName="GymExercisesTab"
+                screenOptions={({ navigation: nav, route }) => ({
+                  headerStyle: { backgroundColor: colors.card },
+                  headerTintColor: colors.textPrimary,
+                  headerTitleStyle: { fontWeight: '800', fontSize: 17 },
+                  headerLeft: () => (
+                    <HamburgerMenu navigation={nav} currentTab={route.name} items={GYM_ITEMS} />
+                  ),
+                  headerRight: () => (
+                    <TouchableOpacity onPress={() => nav.navigate('SettingsGymTab')}
+                      style={{ padding: 8, marginRight: 4 }}>
+                      <Text style={{ fontSize: 20 }}>⚙️</Text>
+                    </TouchableOpacity>
+                  ),
+                })}
+              >
+                <GymStack.Screen name="GymExercisesTab" component={GymHomeScreen}        options={{ title: 'Ejercicios' }} />
+                <GymStack.Screen name="GymRoutinesTab"  component={GymRoutinesScreen}    options={{ title: 'Rutinas' }} />
+                <GymStack.Screen name="PaymentTab"      component={PaymentStack}         options={{ title: 'Mi cuota' }} />
+                <GymStack.Screen name="SettingsGymTab"  component={SettingsStack}        options={{ title: 'Ajustes' }} />
+                <GymStack.Screen name="Detail"          component={DetailScreen}         options={{ title: 'Ejercicio' }} />
+                <GymStack.Screen name="ExecuteRoutine"  component={ExecuteRoutineScreen} options={{ headerShown: false }} />
                 <GymStack.Screen name="GymRoutineDetail" component={RoutineDetailScreen} options={{ title: 'Rutina' }} />
               </GymStack.Navigator>
             );
