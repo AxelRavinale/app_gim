@@ -5,7 +5,7 @@ import { SessionProvider, useSession } from './src/context/SessionContext';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { StatusBar } from 'expo-status-bar';
-import { Text, ActivityIndicator, View } from 'react-native';
+import { Text, ActivityIndicator, View, TouchableOpacity } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import LoginScreen           from './src/screens/LoginScreen';
