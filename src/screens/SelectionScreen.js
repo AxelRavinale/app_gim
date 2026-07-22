@@ -58,19 +58,19 @@ export default function SelectionScreen({ navigation }) {
             <View style={[s.cardAccent, { backgroundColor: colors.brand }]} />
           </TouchableOpacity>
 
-          {/* Card Cardio */}
+          {/* Card Resistencia */}
           <TouchableOpacity
             style={[s.card, { borderColor: 'rgba(96,165,250,0.5)' }]}
-            onPress={() => navigation.navigate('Cardio')}
+            onPress={() => navigation.navigate('Resistencia')}
             activeOpacity={0.85}
           >
             <View style={[s.cardIconWrap, { backgroundColor: 'rgba(96,165,250,0.15)' }]}>
               <Text style={s.cardIcon}>🏃</Text>
             </View>
             <View style={s.cardContent}>
-              <Text style={[s.cardTitle, { color: '#fff' }]}>Cardio</Text>
+              <Text style={[s.cardTitle, { color: '#fff' }]}>Resistencia</Text>
               <Text style={[s.cardDesc, { color: 'rgba(255,255,255,0.6)' }]}>
-                GPS, rutas, distancias y tiempos
+                Cardio, GPS, rutas y distancias
               </Text>
             </View>
             <View style={[s.cardArrow, { backgroundColor: '#60A5FA' }]}>
