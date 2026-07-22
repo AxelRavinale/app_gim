@@ -7,7 +7,7 @@ import {
 import { useTheme } from '../theme/ThemeContext';
 import { useSession } from '../context/SessionContext';
 
-const MENU_ITEMS = [
+const DEFAULT_ITEMS = [
   { id: 'ExercisesTab',    icon: '🏋️', label: 'Ejercicios' },
   { id: 'RoutinesTab',     icon: '📋', label: 'Rutinas' },
   { id: 'StatsTab',        icon: '📊', label: 'Stats' },
@@ -16,7 +16,8 @@ const MENU_ITEMS = [
   { id: 'SettingsTab',     icon: '⚙️', label: 'Ajustes' },
 ];
 
-export default function HamburgerMenu({ navigation, currentTab }) {
+export default function HamburgerMenu({ navigation, currentTab, items }) {
+  const MENU_ITEMS = items || DEFAULT_ITEMS;
   const { colors } = useTheme();
   const { logout } = useSession() || {};
   const [open, setOpen] = useState(false);

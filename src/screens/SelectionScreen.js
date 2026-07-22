@@ -61,7 +61,7 @@ export default function SelectionScreen({ navigation }) {
           {/* Card Resistencia */}
           <TouchableOpacity
             style={[s.card, { borderColor: 'rgba(96,165,250,0.5)' }]}
-            onPress={() => navigation.navigate('Resistencia')}
+            onPress={() => navigation.navigate('Cardio')}
             activeOpacity={0.85}
           >
             <View style={[s.cardIconWrap, { backgroundColor: 'rgba(96,165,250,0.15)' }]}>
