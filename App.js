@@ -99,6 +99,8 @@ function AppContent() {
   }
 
   // Llamado desde LoginScreen al hacer login exitoso
+  // authAPI.login ya guardó los tokens en AsyncStorage
+  // Solo necesitamos actualizar el estado del contexto
   async function handleLoginSuccess(userData, accessToken, refreshToken) {
     const normalized = {
       ...userData,
@@ -109,7 +111,13 @@ function AppContent() {
           : [userData.role || 'member'],
       activeRole: userData.activeRole || userData.active_role || userData.role || 'member',
     };
-    await login(normalized, accessToken, refreshToken);
+    // Si tenemos tokens los pasamos, sino el contexto los lee de AsyncStorage
+    if (accessToken && refreshToken) {
+      await login(normalized, accessToken, refreshToken);
+    } else {
+      // authAPI ya los guardó, solo actualizamos el estado
+      await login(normalized, accessToken || '', refreshToken || '');
+    }
   }
 
   // Cargando sesión inicial
