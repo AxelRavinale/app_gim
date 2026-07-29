@@ -9,19 +9,45 @@ import { useTheme } from '../theme/ThemeContext';
 
 const BASE_URL = 'https://gimnasio-production-7475.up.railway.app';
 
+// ── Componente reutilizable campo contraseña con ojito ────────────────────────
+function PasswordInput({ value, onChangeText, placeholder, style, placeholderTextColor }) {
+  const [show, setShow] = useState(false);
+  return (
+    <View style={{ position:'relative', justifyContent:'center' }}>
+      <TextInput
+        style={[style, { paddingRight: 48 }]}
+        value={value}
+        onChangeText={onChangeText}
+        placeholder={placeholder}
+        placeholderTextColor={placeholderTextColor}
+        secureTextEntry={!show}
+        autoCapitalize="none"
+        autoCorrect={false}
+      />
+      <TouchableOpacity
+        onPress={() => setShow(p => !p)}
+        style={{ position:'absolute', right:14, padding:4 }}
+        activeOpacity={0.7}
+      >
+        <Text style={{ fontSize:18 }}>{show ? '🙈' : '👁️'}</Text>
+      </TouchableOpacity>
+    </View>
+  );
+}
+
 export default function LoginScreen({ onLoginSuccess }) {
   const { colors } = useTheme();
   const s = makeStyles(colors);
 
-  const [mode, setMode]             = useState('login');
-  const [email, setEmail]           = useState('');
-  const [password, setPassword]     = useState('');
-  const [firstName, setFirstName]   = useState('');
-  const [lastName, setLastName]     = useState('');
-  const [gymCode, setGymCode]       = useState('');
-  const [gymInfo, setGymInfo]       = useState(null);
+  const [mode, setMode]               = useState('login');
+  const [email, setEmail]             = useState('');
+  const [password, setPassword]       = useState('');
+  const [firstName, setFirstName]     = useState('');
+  const [lastName, setLastName]       = useState('');
+  const [gymCode, setGymCode]         = useState('');
+  const [gymInfo, setGymInfo]         = useState(null);
   const [checkingGym, setCheckingGym] = useState(false);
-  const [isLoading, setIsLoading]   = useState(false);
+  const [isLoading, setIsLoading]     = useState(false);
 
   const logoAnim = useRef(new Animated.Value(0)).current;
   const formAnim = useRef(new Animated.Value(0)).current;
@@ -33,7 +59,6 @@ export default function LoginScreen({ onLoginSuccess }) {
     ]).start();
   }, []);
 
-  // Verifica el código del gimnasio al escribirlo
   useEffect(() => {
     if (gymCode.length < 10) { setGymInfo(null); return; }
     const timer = setTimeout(() => verifyGymCode(gymCode), 800);
@@ -44,30 +69,22 @@ export default function LoginScreen({ onLoginSuccess }) {
     setCheckingGym(true);
     try {
       const response = await fetch(`${BASE_URL}/api/gym-info/${code}`);
-      if (response.ok) {
-        const data = await response.json();
-        setGymInfo(data);
-      } else {
-        setGymInfo(null);
-      }
+      if (response.ok) { setGymInfo(await response.json()); }
+      else { setGymInfo(null); }
     } catch { setGymInfo(null); }
     finally { setCheckingGym(false); }
   }
 
   async function handleSubmit() {
     if (!email.trim() || !password.trim()) {
-      Alert.alert('Error', 'Completá email y contraseña');
-      return;
+      Alert.alert('Error', 'Completá email y contraseña'); return;
     }
     if (mode === 'register' && !firstName.trim()) {
-      Alert.alert('Error', 'Ingresá tu nombre');
-      return;
+      Alert.alert('Error', 'Ingresá tu nombre'); return;
     }
     if (password.length < 8) {
-      Alert.alert('Error', 'La contraseña debe tener al menos 8 caracteres');
-      return;
+      Alert.alert('Error', 'La contraseña debe tener al menos 8 caracteres'); return;
     }
-
     setIsLoading(true);
     try {
       let data;
@@ -80,7 +97,7 @@ export default function LoginScreen({ onLoginSuccess }) {
           gymCode.trim() || null
         );
       }
-      onLoginSuccess(data.user);
+      onLoginSuccess(data.user, data.accessToken, data.refreshToken);
     } catch (error) {
       Alert.alert('Error', error.message || 'Algo salió mal. Intentá de nuevo.');
     } finally { setIsLoading(false); }
@@ -92,12 +109,11 @@ export default function LoginScreen({ onLoginSuccess }) {
       <ScrollView contentContainerStyle={s.scroll} keyboardShouldPersistTaps="handled">
 
         {/* Logo */}
-        <Animated.View style={[s.logoSection, { opacity:logoAnim, transform:[{ translateY: logoAnim.interpolate({ inputRange:[0,1], outputRange:[30,0] }) }] }]}>
-          <Image
-            source={require('../../assets/icon.png')}
-            style={s.logoImage}
-            resizeMode="contain"
-          />
+        <Animated.View style={[s.logoSection, {
+          opacity: logoAnim,
+          transform:[{ translateY: logoAnim.interpolate({ inputRange:[0,1], outputRange:[30,0] }) }]
+        }]}>
+          <Image source={require('../../assets/icon.png')} style={s.logoImage} resizeMode="contain" />
           <View style={s.brandLine} />
         </Animated.View>
 
@@ -107,7 +123,9 @@ export default function LoginScreen({ onLoginSuccess }) {
           {/* Selector login / registro */}
           <View style={s.modeSelector}>
             {[['login','Iniciar sesión'],['register','Registrarse']].map(([val,label]) => (
-              <TouchableOpacity key={val} style={[s.modeBtn, mode===val && s.modeBtnActive]} onPress={() => setMode(val)}>
+              <TouchableOpacity key={val}
+                style={[s.modeBtn, mode===val && s.modeBtnActive]}
+                onPress={() => setMode(val)}>
                 <Text style={[s.modeBtnText, mode===val && s.modeBtnTextActive]}>{label}</Text>
               </TouchableOpacity>
             ))}
@@ -129,7 +147,6 @@ export default function LoginScreen({ onLoginSuccess }) {
                 </View>
               </View>
 
-              {/* Código del gimnasio */}
               <Text style={s.fieldLabel}>CÓDIGO DEL GIMNASIO <Text style={s.optional}>(opcional)</Text></Text>
               <View style={s.gymCodeRow}>
                 <TextInput
@@ -144,7 +161,6 @@ export default function LoginScreen({ onLoginSuccess }) {
                 {checkingGym && <ActivityIndicator color={colors.brand} size="small" style={{ marginLeft:8 }} />}
               </View>
 
-              {/* Info del gimnasio verificado */}
               {gymInfo && (
                 <View style={[s.gymVerified, { borderColor: gymInfo.primary_color || colors.brand }]}>
                   <Text style={{ fontSize:18 }}>✅</Text>
@@ -168,17 +184,33 @@ export default function LoginScreen({ onLoginSuccess }) {
             placeholder="tu@email.com" placeholderTextColor={colors.textLight}
             keyboardType="email-address" autoCapitalize="none" autoCorrect={false} />
 
-          {/* Password */}
+          {/* Contraseña con ojito */}
           <Text style={[s.fieldLabel, { marginTop:14 }]}>CONTRASEÑA *</Text>
-          <TextInput style={s.input} value={password} onChangeText={setPassword}
-            placeholder="Mínimo 8 caracteres" placeholderTextColor={colors.textLight}
-            secureTextEntry />
+          <PasswordInput
+            value={password}
+            onChangeText={setPassword}
+            placeholder="Mínimo 8 caracteres"
+            placeholderTextColor={colors.textLight}
+            style={s.input}
+          />
+
+          {/* Olvidé mi contraseña */}
+          {mode === 'login' && (
+            <TouchableOpacity style={{ alignSelf:'flex-end', marginTop:6, marginBottom:4 }}>
+              <Text style={{ fontSize:12, color:'#555', fontWeight:'600' }}>¿Olvidaste tu contraseña?</Text>
+            </TouchableOpacity>
+          )}
 
           {/* Submit */}
-          <TouchableOpacity style={[s.submitBtn, isLoading && { opacity:0.7 }]} onPress={handleSubmit} disabled={isLoading} activeOpacity={0.85}>
+          <TouchableOpacity
+            style={[s.submitBtn, isLoading && { opacity:0.7 }]}
+            onPress={handleSubmit}
+            disabled={isLoading}
+            activeOpacity={0.85}
+          >
             {isLoading
               ? <ActivityIndicator color="#0A0A0A" />
-              : <Text style={s.submitBtnText}>{mode==='login'?'Entrar →':'Crear cuenta →'}</Text>
+              : <Text style={s.submitBtnText}>{mode==='login' ? 'Entrar →' : 'Crear cuenta →'}</Text>
             }
           </TouchableOpacity>
 
@@ -196,28 +228,28 @@ export default function LoginScreen({ onLoginSuccess }) {
 }
 
 const makeStyles = (colors) => StyleSheet.create({
-  container: { flex:1, backgroundColor:'#0A0A0A' },
-  scroll: { flexGrow:1, justifyContent:'center', padding:24 },
-  logoSection: { alignItems:'center', marginBottom:32 },
-  logoImage: { width:200, height:200, marginBottom:4 },
-  brandLine: { width:36, height:3, backgroundColor:'#E8B500', borderRadius:2, marginTop:8 },
-  formCard: { backgroundColor:'#111', borderRadius:20, padding:20, borderWidth:0.5, borderColor:'#1E1E1E' },
-  modeSelector: { flexDirection:'row', backgroundColor:'#0A0A0A', borderRadius:12, padding:3, marginBottom:20 },
-  modeBtn: { flex:1, paddingVertical:10, borderRadius:10, alignItems:'center' },
-  modeBtnActive: { backgroundColor:'#E8B500' },
-  modeBtnText: { fontSize:13, fontWeight:'600', color:'#555' },
-  modeBtnTextActive: { color:'#0A0A0A', fontWeight:'800' },
-  nameRow: { flexDirection:'row', gap:10, marginBottom:4 },
-  fieldLabel: { fontSize:10, fontWeight:'800', color:'#E8B500', letterSpacing:1.5, marginBottom:6, marginTop:4 },
-  optional: { color:'#444', fontWeight:'600', letterSpacing:0 },
-  input: { backgroundColor:'#0A0A0A', borderWidth:1, borderColor:'#1E1E1E', borderRadius:12, paddingHorizontal:14, paddingVertical:13, fontSize:15, color:'#F5F5F5', marginBottom:4 },
-  gymCodeRow: { flexDirection:'row', alignItems:'center', marginBottom:8 },
-  gymVerified: { flexDirection:'row', alignItems:'center', gap:10, padding:12, borderRadius:12, borderWidth:1.5, marginBottom:8, backgroundColor:'rgba(232,181,0,0.05)' },
+  container:       { flex:1, backgroundColor:'#0A0A0A' },
+  scroll:          { flexGrow:1, justifyContent:'center', padding:24 },
+  logoSection:     { alignItems:'center', marginBottom:32 },
+  logoImage:       { width:200, height:200, marginBottom:4 },
+  brandLine:       { width:36, height:3, backgroundColor:'#E8B500', borderRadius:2, marginTop:8 },
+  formCard:        { backgroundColor:'#111', borderRadius:20, padding:20, borderWidth:0.5, borderColor:'#1E1E1E' },
+  modeSelector:    { flexDirection:'row', backgroundColor:'#0A0A0A', borderRadius:12, padding:3, marginBottom:20 },
+  modeBtn:         { flex:1, paddingVertical:10, borderRadius:10, alignItems:'center' },
+  modeBtnActive:   { backgroundColor:'#E8B500' },
+  modeBtnText:     { fontSize:13, fontWeight:'600', color:'#555' },
+  modeBtnTextActive:{ color:'#0A0A0A', fontWeight:'800' },
+  nameRow:         { flexDirection:'row', gap:10, marginBottom:4 },
+  fieldLabel:      { fontSize:10, fontWeight:'800', color:'#E8B500', letterSpacing:1.5, marginBottom:6, marginTop:4 },
+  optional:        { color:'#444', fontWeight:'600', letterSpacing:0 },
+  input:           { backgroundColor:'#0A0A0A', borderWidth:1, borderColor:'#1E1E1E', borderRadius:12, paddingHorizontal:14, paddingVertical:13, fontSize:15, color:'#F5F5F5', marginBottom:4 },
+  gymCodeRow:      { flexDirection:'row', alignItems:'center', marginBottom:8 },
+  gymVerified:     { flexDirection:'row', alignItems:'center', gap:10, padding:12, borderRadius:12, borderWidth:1.5, marginBottom:8, backgroundColor:'rgba(232,181,0,0.05)' },
   gymVerifiedName: { fontSize:14, fontWeight:'800' },
-  gymVerifiedSub: { fontSize:11, color:'#666', marginTop:2 },
-  gymNotFound: { padding:10, borderRadius:10, backgroundColor:'rgba(239,68,68,0.1)', marginBottom:8 },
-  submitBtn: { backgroundColor:'#E8B500', borderRadius:14, padding:17, alignItems:'center', marginTop:20, shadowColor:'#E8B500', shadowOffset:{width:0,height:4}, shadowOpacity:0.35, shadowRadius:10, elevation:6 },
-  submitBtnText: { color:'#0A0A0A', fontWeight:'900', fontSize:16, letterSpacing:0.3 },
-  gymHint: { fontSize:12, color:'#333', textAlign:'center', marginTop:14, lineHeight:18 },
-  version: { textAlign:'center', color:'#222', fontSize:11, marginTop:24 },
+  gymVerifiedSub:  { fontSize:11, color:'#666', marginTop:2 },
+  gymNotFound:     { padding:10, borderRadius:10, backgroundColor:'rgba(239,68,68,0.1)', marginBottom:8 },
+  submitBtn:       { backgroundColor:'#E8B500', borderRadius:14, padding:17, alignItems:'center', marginTop:20, shadowColor:'#E8B500', shadowOffset:{width:0,height:4}, shadowOpacity:0.35, shadowRadius:10, elevation:6 },
+  submitBtnText:   { color:'#0A0A0A', fontWeight:'900', fontSize:16, letterSpacing:0.3 },
+  gymHint:         { fontSize:12, color:'#333', textAlign:'center', marginTop:14, lineHeight:18 },
+  version:         { textAlign:'center', color:'#222', fontSize:11, marginTop:24 },
 });

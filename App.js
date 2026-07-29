@@ -1,12 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect } from 'react';
 import * as Updates from 'expo-updates';
 import { NavigationContainer } from '@react-navigation/native';
 import { SessionProvider, useSession } from './src/context/SessionContext';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
-import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { StatusBar } from 'expo-status-bar';
 import { Text, ActivityIndicator, View, TouchableOpacity } from 'react-native';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import LoginScreen           from './src/screens/LoginScreen';
 import HomeScreen            from './src/screens/HomeScreen';
@@ -24,20 +22,19 @@ import SettingsScreen        from './src/screens/SettingsScreen';
 import PaymentScreen         from './src/screens/PaymentScreen';
 import SelectionScreen       from './src/screens/SelectionScreen';
 import JoinGymScreen         from './src/screens/JoinGymScreen';
-import NoGymScreen               from './src/screens/NoGymScreen';
 import TrainingSelectionScreen   from './src/screens/TrainingSelectionScreen';
-import GymHomeScreen           from './src/screens/GymHomeScreen';
-import GymRoutinesScreen       from './src/screens/GymRoutinesScreen';
-import GymCardioScreen         from './src/screens/GymCardioScreen';
-import CardioSelectionScreen   from './src/screens/CardioSelectionScreen';
-import RunRouteScreen          from './src/screens/RunRouteScreen';
-import CronometroScreen        from './src/screens/CronometroScreen';
-import HamburgerMenu           from './src/components/HamburgerMenu';
-import CardioScreen          from './src/screens/CardioScreen';
-import CardioTimerScreen     from './src/screens/CardioTimerScreen';
+import GymHomeScreen             from './src/screens/GymHomeScreen';
+import GymRoutinesScreen         from './src/screens/GymRoutinesScreen';
+import GymCardioScreen           from './src/screens/GymCardioScreen';
+import CardioSelectionScreen     from './src/screens/CardioSelectionScreen';
+import RunRouteScreen            from './src/screens/RunRouteScreen';
+import CronometroScreen          from './src/screens/CronometroScreen';
+import HamburgerMenu             from './src/components/HamburgerMenu';
+import CardioScreen              from './src/screens/CardioScreen';
+import CardioTimerScreen         from './src/screens/CardioTimerScreen';
 
 import { ThemeProvider, useTheme } from './src/theme/ThemeContext';
-import { authAPI, getSavedUser }   from './src/services/api';
+import { authAPI } from './src/services/api';
 
 function buildScreenOptions(colors) {
   return {
@@ -48,6 +45,8 @@ function buildScreenOptions(colors) {
     animation:        'slide_from_right',
   };
 }
+
+const Stack = createNativeStackNavigator();
 
 function ExercisesStack() {
   const { colors } = useTheme();
@@ -79,53 +78,97 @@ function AchievementsStack() { const { colors } = useTheme(); return <Stack.Navi
 function SettingsStack()     { const { colors } = useTheme(); return <Stack.Navigator screenOptions={buildScreenOptions(colors)}><Stack.Screen name="Settings"     component={SettingsScreen}     options={{ headerShown: false }} /></Stack.Navigator>; }
 function PaymentStack()      { const { colors } = useTheme(); return <Stack.Navigator screenOptions={buildScreenOptions(colors)}><Stack.Screen name="Payment"      component={PaymentScreen}      options={{ headerShown: false }} /></Stack.Navigator>; }
 
-const Stack = createNativeStackNavigator();
-const Tab   = createBottomTabNavigator();
+// ── App principal — usa SessionContext como única fuente de verdad ────────────
+function AppContent() {
+  const { colors }              = useTheme();
+  const { user, isChecking, login, logout } = useSession();
 
-function MainApp() {
-  const { colors }  = useTheme();
-  const { user, logout } = useSession();
+  useEffect(() => {
+    checkForUpdates();
+  }, []);
 
-  const activeRole = user?.activeRole || user?.role || 'member';
-  const hasGym     = !!(user?.gymId || user?.gym_id);
+  async function checkForUpdates() {
+    try {
+      if (__DEV__) return;
+      const update = await Updates.checkForUpdateAsync();
+      if (update.isAvailable) {
+        await Updates.fetchUpdateAsync();
+        await Updates.reloadAsync();
+      }
+    } catch {}
+  }
 
-  const ROLE_ICONS = {
-    ExercisesTab:    '🏋️',
-    RoutinesTab:     '📋',
-    StatsTab:        '📊',
-    TimerTab:        '⏱️',
-    AchievementsTab: '🏆',
-    PaymentTab:      '💳',
-    SettingsTab:     '⚙️',
-  };
+  // Llamado desde LoginScreen al hacer login exitoso
+  async function handleLoginSuccess(userData, accessToken, refreshToken) {
+    const normalized = {
+      ...userData,
+      roles: Array.isArray(userData.roles)
+        ? userData.roles
+        : typeof userData.roles === 'string'
+          ? JSON.parse(userData.roles)
+          : [userData.role || 'member'],
+      activeRole: userData.activeRole || userData.active_role || userData.role || 'member',
+    };
+    await login(normalized, accessToken, refreshToken);
+  }
+
+  // Cargando sesión inicial
+  if (isChecking) {
+    return (
+      <View style={{ flex:1, justifyContent:'center', alignItems:'center', backgroundColor:'#0A0A0A' }}>
+        <Text style={{ fontSize:36, marginBottom:16 }}>💪</Text>
+        <ActivityIndicator color="#E8B500" size="large" />
+      </View>
+    );
+  }
+
+  // Sin usuario → pantalla de login
+  if (!user) {
+    return <LoginScreen onLoginSuccess={handleLoginSuccess} />;
+  }
+
+  // Con usuario → navegación principal
+  const GYM_ITEMS = [
+    { id: 'GymExercisesTab', icon: '🏋️', label: 'Ejercicios' },
+    { id: 'GymRoutinesTab',  icon: '📋', label: 'Rutinas' },
+    { id: 'PaymentTab',      icon: '💳', label: 'Mi cuota' },
+    { id: 'SettingsGymTab',  icon: '⚙️', label: 'Ajustes' },
+  ];
+
+  const PERSONAL_ITEMS = [
+    { id: 'ExercisesTab',    icon: '🏋️', label: 'Ejercicios' },
+    { id: 'RoutinesTab',     icon: '📋', label: 'Rutinas' },
+    { id: 'StatsTab',        icon: '📊', label: 'Stats' },
+    { id: 'TimerTab',        icon: '⏱️', label: 'Timer' },
+    { id: 'AchievementsTab', icon: '🏆', label: 'Logros' },
+    { id: 'SettingsTab',     icon: '⚙️', label: 'Ajustes' },
+  ];
 
   return (
     <NavigationContainer>
       <StatusBar style="light" />
       <Stack.Navigator screenOptions={{ headerShown: false }}>
         <Stack.Screen name="Selection" component={SelectionScreen} />
-        {/* Selección Gimnasio / Personal */}
-        <Stack.Screen name="Training" component={TrainingSelectionScreen} />
+        <Stack.Screen name="Training"  component={TrainingSelectionScreen} />
 
-        {/* GymTraining — Stack con hamburger menu */}
+        {/* GymTraining — hamburguesa */}
         <Stack.Screen name="GymTraining">
           {() => {
             const GymStack = createNativeStackNavigator();
-            const GYM_ITEMS = [
-              { id: 'GymExercisesTab', icon: '🏋️', label: 'Ejercicios' },
-              { id: 'GymRoutinesTab',  icon: '📋', label: 'Rutinas' },
-              { id: 'PaymentTab',      icon: '💳', label: 'Mi cuota' },
-              { id: 'SettingsGymTab',  icon: '⚙️', label: 'Ajustes' },
-            ];
             return (
               <GymStack.Navigator
                 initialRouteName="GymExercisesTab"
                 screenOptions={({ navigation: nav, route }) => ({
-                  headerStyle: { backgroundColor: colors.card },
-                  headerTintColor: colors.textPrimary,
+                  headerStyle:      { backgroundColor: colors.card },
+                  headerTintColor:  colors.textPrimary,
                   headerTitleStyle: { fontWeight: '800', fontSize: 17 },
                   headerLeft: () => (
-                    <HamburgerMenu navigation={nav} currentTab={route.name} items={GYM_ITEMS} onLogout={logout} />
+                    <HamburgerMenu
+                      navigation={nav}
+                      currentTab={route.name}
+                      items={GYM_ITEMS}
+                      onLogout={logout}
+                    />
                   ),
                   headerRight: () => (
                     <TouchableOpacity onPress={() => nav.navigate('SettingsGymTab')}
@@ -135,19 +178,19 @@ function MainApp() {
                   ),
                 })}
               >
-                <GymStack.Screen name="GymExercisesTab" component={GymHomeScreen}        options={{ title: 'Ejercicios' }} />
-                <GymStack.Screen name="GymRoutinesTab"  component={GymRoutinesScreen}    options={{ title: 'Rutinas' }} />
-                <GymStack.Screen name="PaymentTab"      component={PaymentStack}         options={{ title: 'Mi cuota' }} />
-                <GymStack.Screen name="SettingsGymTab"  component={SettingsStack}        options={{ title: 'Ajustes' }} />
-                <GymStack.Screen name="Detail"          component={DetailScreen}         options={{ title: 'Ejercicio' }} />
-                <GymStack.Screen name="ExecuteRoutine"  component={ExecuteRoutineScreen} options={{ headerShown: false }} />
-                <GymStack.Screen name="GymRoutineDetail" component={RoutineDetailScreen} options={{ title: 'Rutina' }} />
+                <GymStack.Screen name="GymExercisesTab"  component={GymHomeScreen}        options={{ title: 'Ejercicios' }} />
+                <GymStack.Screen name="GymRoutinesTab"   component={GymRoutinesScreen}    options={{ title: 'Rutinas' }} />
+                <GymStack.Screen name="PaymentTab"       component={PaymentStack}         options={{ title: 'Mi cuota' }} />
+                <GymStack.Screen name="SettingsGymTab"   component={SettingsStack}        options={{ title: 'Ajustes' }} />
+                <GymStack.Screen name="Detail"           component={DetailScreen}         options={{ title: 'Ejercicio' }} />
+                <GymStack.Screen name="ExecuteRoutine"   component={ExecuteRoutineScreen} options={{ headerShown: false }} />
+                <GymStack.Screen name="GymRoutineDetail" component={RoutineDetailScreen}  options={{ title: 'Rutina' }} />
               </GymStack.Navigator>
             );
           }}
         </Stack.Screen>
 
-        {/* PersonalTraining — Stack con hamburger menu */}
+        {/* PersonalTraining — hamburguesa */}
         <Stack.Screen name="PersonalTraining">
           {() => {
             const PersonalStack = createNativeStackNavigator();
@@ -155,11 +198,16 @@ function MainApp() {
               <PersonalStack.Navigator
                 initialRouteName="ExercisesTab"
                 screenOptions={({ navigation, route }) => ({
-                  headerStyle: { backgroundColor: colors.card },
-                  headerTintColor: colors.textPrimary,
+                  headerStyle:      { backgroundColor: colors.card },
+                  headerTintColor:  colors.textPrimary,
                   headerTitleStyle: { fontWeight: '800', fontSize: 17 },
                   headerLeft: () => (
-                    <HamburgerMenu navigation={navigation} currentTab={route.name} onLogout={logout} />
+                    <HamburgerMenu
+                      navigation={navigation}
+                      currentTab={route.name}
+                      items={PERSONAL_ITEMS}
+                      onLogout={logout}
+                    />
                   ),
                   headerRight: () => (
                     <TouchableOpacity onPress={() => navigation.navigate('SettingsTab')}
@@ -180,101 +228,15 @@ function MainApp() {
           }}
         </Stack.Screen>
 
-        <Stack.Screen name="Cardio"         component={CardioSelectionScreen} options={{ headerShown:false }} />
-        <Stack.Screen name="CardioPersonal" component={CardioScreen}           options={{ headerShown:false }} />
-        <Stack.Screen name="CardioTimer"    component={CardioTimerScreen}      options={{ headerShown:false }} />
-        <Stack.Screen name="GymCardio"      component={GymCardioScreen}        options={{ headerShown:false }} />
-        <Stack.Screen name="RunRoute"       component={RunRouteScreen}         options={{ headerShown:false }} />
-        <Stack.Screen name="Cronometro"    component={CronometroScreen}       options={{ headerShown:false }} />
-        <Stack.Screen name="JoinGym"        component={JoinGymScreen} options={{ headerShown:false }} />
+        <Stack.Screen name="Cardio"         component={CardioSelectionScreen} options={{ headerShown: false }} />
+        <Stack.Screen name="CardioPersonal" component={CardioScreen}          options={{ headerShown: false }} />
+        <Stack.Screen name="CardioTimer"    component={CardioTimerScreen}     options={{ headerShown: false }} />
+        <Stack.Screen name="GymCardio"      component={GymCardioScreen}       options={{ headerShown: false }} />
+        <Stack.Screen name="RunRoute"       component={RunRouteScreen}        options={{ headerShown: false }} />
+        <Stack.Screen name="Cronometro"     component={CronometroScreen}      options={{ headerShown: false }} />
+        <Stack.Screen name="JoinGym"        component={JoinGymScreen}         options={{ headerShown: false }} />
       </Stack.Navigator>
     </NavigationContainer>
-  );
-}
-
-function AppContent() {
-  const { colors }                      = useTheme();
-  const [user, setUser]                 = useState(null);
-  const [isChecking, setIsChecking]     = useState(true);
-
-  useEffect(() => {
-    checkSession();
-    checkForUpdates();
-  }, []);
-
-  async function checkForUpdates() {
-    try {
-      if (__DEV__) return; // No checkear en desarrollo
-      const update = await Updates.checkForUpdateAsync();
-      if (update.isAvailable) {
-        await Updates.fetchUpdateAsync();
-        await Updates.reloadAsync();
-      }
-    } catch {}
-  }
-
-  async function checkSession() {
-    try {
-      const savedUser = await getSavedUser();
-      const isLogged  = await authAPI.isLoggedIn();
-      if (savedUser && isLogged) {
-        // Asegurarse que roles sea siempre un array
-        const normalizedUser = {
-          ...savedUser,
-          roles: Array.isArray(savedUser.roles)
-            ? savedUser.roles
-            : typeof savedUser.roles === 'string'
-              ? JSON.parse(savedUser.roles)
-              : [savedUser.role || 'member'],
-          activeRole: savedUser.activeRole || savedUser.active_role || savedUser.role || 'member',
-        };
-        setUser(normalizedUser);
-      }
-    } catch (err) {
-      console.log('Error checkSession:', err.message);
-    } finally {
-      setIsChecking(false);
-    }
-  }
-
-  async function handleLogout() {
-    try { await authAPI.logout(); } catch {}
-    await AsyncStorage.multiRemove([
-      'gymtracker_access_token',
-      'gymtracker_refresh_token',
-      'gymtracker_user',
-    ]);
-    setUser(null);
-  }
-
-  function handleUserChange(updatedUser) {
-    const normalized = {
-      ...updatedUser,
-      roles: Array.isArray(updatedUser.roles)
-        ? updatedUser.roles
-        : typeof updatedUser.roles === 'string'
-          ? JSON.parse(updatedUser.roles)
-          : [updatedUser.role || 'member'],
-      activeRole: updatedUser.activeRole || updatedUser.active_role || updatedUser.role || 'member',
-    };
-    setUser(normalized);
-    // Guardar en AsyncStorage también
-    AsyncStorage.setItem('gymtracker_user', JSON.stringify(normalized)).catch(() => {});
-  }
-
-  if (isChecking) {
-    return (
-      <View style={{ flex:1, justifyContent:'center', alignItems:'center', backgroundColor:'#0A0A0A' }}>
-        <Text style={{ fontSize:36, marginBottom:16 }}>💪</Text>
-        <ActivityIndicator color="#E8B500" size="large" />
-      </View>
-    );
-  }
-
-  if (!user) return <LoginScreen onLoginSuccess={handleUserChange} />;
-
-  return (
-    <MainApp />
   );
 }
 
