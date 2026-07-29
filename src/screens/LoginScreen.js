@@ -97,7 +97,7 @@ export default function LoginScreen({ onLoginSuccess }) {
           gymCode.trim() || null
         );
       }
-      onLoginSuccess(data.user, data.accessToken, data.refreshToken);
+      onLoginSuccess(data.user);
     } catch (error) {
       Alert.alert('Error', error.message || 'Algo salió mal. Intentá de nuevo.');
     } finally { setIsLoading(false); }

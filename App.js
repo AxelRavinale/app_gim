@@ -1,27 +1,28 @@
-import React, { useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import * as Updates from 'expo-updates';
 import { NavigationContainer } from '@react-navigation/native';
 import { SessionProvider, useSession } from './src/context/SessionContext';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { StatusBar } from 'expo-status-bar';
 import { Text, ActivityIndicator, View, TouchableOpacity } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
-import LoginScreen           from './src/screens/LoginScreen';
-import HomeScreen            from './src/screens/HomeScreen';
-import DetailScreen          from './src/screens/DetailScreen';
-import AddExerciseScreen     from './src/screens/AddExerciseScreen';
-import ExecuteExerciseScreen from './src/screens/ExecuteExerciseScreen';
-import RoutinesScreen        from './src/screens/RoutinesScreen';
-import RoutineDetailScreen   from './src/screens/RoutineDetailScreen';
-import AddRoutineScreen      from './src/screens/AddRoutineScreen';
-import ExecuteRoutineScreen  from './src/screens/ExecuteRoutineScreen';
-import StatsScreen           from './src/screens/StatsScreen';
-import TimerScreen           from './src/screens/TimerScreen';
-import AchievementsScreen    from './src/screens/AchievementsScreen';
-import SettingsScreen        from './src/screens/SettingsScreen';
-import PaymentScreen         from './src/screens/PaymentScreen';
-import SelectionScreen       from './src/screens/SelectionScreen';
-import JoinGymScreen         from './src/screens/JoinGymScreen';
+import LoginScreen               from './src/screens/LoginScreen';
+import HomeScreen                from './src/screens/HomeScreen';
+import DetailScreen              from './src/screens/DetailScreen';
+import AddExerciseScreen         from './src/screens/AddExerciseScreen';
+import ExecuteExerciseScreen     from './src/screens/ExecuteExerciseScreen';
+import RoutinesScreen            from './src/screens/RoutinesScreen';
+import RoutineDetailScreen       from './src/screens/RoutineDetailScreen';
+import AddRoutineScreen          from './src/screens/AddRoutineScreen';
+import ExecuteRoutineScreen      from './src/screens/ExecuteRoutineScreen';
+import StatsScreen               from './src/screens/StatsScreen';
+import TimerScreen               from './src/screens/TimerScreen';
+import AchievementsScreen        from './src/screens/AchievementsScreen';
+import SettingsScreen            from './src/screens/SettingsScreen';
+import PaymentScreen             from './src/screens/PaymentScreen';
+import SelectionScreen           from './src/screens/SelectionScreen';
+import JoinGymScreen             from './src/screens/JoinGymScreen';
 import TrainingSelectionScreen   from './src/screens/TrainingSelectionScreen';
 import GymHomeScreen             from './src/screens/GymHomeScreen';
 import GymRoutinesScreen         from './src/screens/GymRoutinesScreen';
@@ -34,7 +35,7 @@ import CardioScreen              from './src/screens/CardioScreen';
 import CardioTimerScreen         from './src/screens/CardioTimerScreen';
 
 import { ThemeProvider, useTheme } from './src/theme/ThemeContext';
-import { authAPI } from './src/services/api';
+import { authAPI, getSavedUser }   from './src/services/api';
 
 function buildScreenOptions(colors) {
   return {
@@ -78,64 +79,9 @@ function AchievementsStack() { const { colors } = useTheme(); return <Stack.Navi
 function SettingsStack()     { const { colors } = useTheme(); return <Stack.Navigator screenOptions={buildScreenOptions(colors)}><Stack.Screen name="Settings"     component={SettingsScreen}     options={{ headerShown: false }} /></Stack.Navigator>; }
 function PaymentStack()      { const { colors } = useTheme(); return <Stack.Navigator screenOptions={buildScreenOptions(colors)}><Stack.Screen name="Payment"      component={PaymentScreen}      options={{ headerShown: false }} /></Stack.Navigator>; }
 
-// ── App principal — usa SessionContext como única fuente de verdad ────────────
-function AppContent() {
-  const { colors }              = useTheme();
-  const { user, isChecking, login, logout } = useSession();
+function MainApp({ onLogout }) {
+  const { colors } = useTheme();
 
-  useEffect(() => {
-    checkForUpdates();
-  }, []);
-
-  async function checkForUpdates() {
-    try {
-      if (__DEV__) return;
-      const update = await Updates.checkForUpdateAsync();
-      if (update.isAvailable) {
-        await Updates.fetchUpdateAsync();
-        await Updates.reloadAsync();
-      }
-    } catch {}
-  }
-
-  // Llamado desde LoginScreen al hacer login exitoso
-  // authAPI.login ya guardó los tokens en AsyncStorage
-  // Solo necesitamos actualizar el estado del contexto
-  async function handleLoginSuccess(userData, accessToken, refreshToken) {
-    const normalized = {
-      ...userData,
-      roles: Array.isArray(userData.roles)
-        ? userData.roles
-        : typeof userData.roles === 'string'
-          ? JSON.parse(userData.roles)
-          : [userData.role || 'member'],
-      activeRole: userData.activeRole || userData.active_role || userData.role || 'member',
-    };
-    // Si tenemos tokens los pasamos, sino el contexto los lee de AsyncStorage
-    if (accessToken && refreshToken) {
-      await login(normalized, accessToken, refreshToken);
-    } else {
-      // authAPI ya los guardó, solo actualizamos el estado
-      await login(normalized, accessToken || '', refreshToken || '');
-    }
-  }
-
-  // Cargando sesión inicial
-  if (isChecking) {
-    return (
-      <View style={{ flex:1, justifyContent:'center', alignItems:'center', backgroundColor:'#0A0A0A' }}>
-        <Text style={{ fontSize:36, marginBottom:16 }}>💪</Text>
-        <ActivityIndicator color="#E8B500" size="large" />
-      </View>
-    );
-  }
-
-  // Sin usuario → pantalla de login
-  if (!user) {
-    return <LoginScreen onLoginSuccess={handleLoginSuccess} />;
-  }
-
-  // Con usuario → navegación principal
   const GYM_ITEMS = [
     { id: 'GymExercisesTab', icon: '🏋️', label: 'Ejercicios' },
     { id: 'GymRoutinesTab',  icon: '📋', label: 'Rutinas' },
@@ -159,7 +105,7 @@ function AppContent() {
         <Stack.Screen name="Selection" component={SelectionScreen} />
         <Stack.Screen name="Training"  component={TrainingSelectionScreen} />
 
-        {/* GymTraining — hamburguesa */}
+        {/* GymTraining */}
         <Stack.Screen name="GymTraining">
           {() => {
             const GymStack = createNativeStackNavigator();
@@ -171,16 +117,10 @@ function AppContent() {
                   headerTintColor:  colors.textPrimary,
                   headerTitleStyle: { fontWeight: '800', fontSize: 17 },
                   headerLeft: () => (
-                    <HamburgerMenu
-                      navigation={nav}
-                      currentTab={route.name}
-                      items={GYM_ITEMS}
-                      onLogout={logout}
-                    />
+                    <HamburgerMenu navigation={nav} currentTab={route.name} items={GYM_ITEMS} onLogout={onLogout} />
                   ),
                   headerRight: () => (
-                    <TouchableOpacity onPress={() => nav.navigate('SettingsGymTab')}
-                      style={{ padding: 8, marginRight: 4 }}>
+                    <TouchableOpacity onPress={() => nav.navigate('SettingsGymTab')} style={{ padding:8, marginRight:4 }}>
                       <Text style={{ fontSize: 20 }}>⚙️</Text>
                     </TouchableOpacity>
                   ),
@@ -198,7 +138,7 @@ function AppContent() {
           }}
         </Stack.Screen>
 
-        {/* PersonalTraining — hamburguesa */}
+        {/* PersonalTraining */}
         <Stack.Screen name="PersonalTraining">
           {() => {
             const PersonalStack = createNativeStackNavigator();
@@ -210,16 +150,10 @@ function AppContent() {
                   headerTintColor:  colors.textPrimary,
                   headerTitleStyle: { fontWeight: '800', fontSize: 17 },
                   headerLeft: () => (
-                    <HamburgerMenu
-                      navigation={navigation}
-                      currentTab={route.name}
-                      items={PERSONAL_ITEMS}
-                      onLogout={logout}
-                    />
+                    <HamburgerMenu navigation={navigation} currentTab={route.name} items={PERSONAL_ITEMS} onLogout={onLogout} />
                   ),
                   headerRight: () => (
-                    <TouchableOpacity onPress={() => navigation.navigate('SettingsTab')}
-                      style={{ padding: 8, marginRight: 4 }}>
+                    <TouchableOpacity onPress={() => navigation.navigate('SettingsTab')} style={{ padding:8, marginRight:4 }}>
                       <Text style={{ fontSize: 20 }}>⚙️</Text>
                     </TouchableOpacity>
                   ),
@@ -246,6 +180,67 @@ function AppContent() {
       </Stack.Navigator>
     </NavigationContainer>
   );
+}
+
+// AppContent maneja su propio estado — igual que antes
+function AppContent() {
+  const [user, setUser]             = useState(null);
+  const [isChecking, setIsChecking] = useState(true);
+
+  useEffect(() => {
+    checkSession();
+    checkForUpdates();
+  }, []);
+
+  async function checkForUpdates() {
+    try {
+      if (__DEV__) return;
+      const update = await Updates.checkForUpdateAsync();
+      if (update.isAvailable) {
+        await Updates.fetchUpdateAsync();
+        await Updates.reloadAsync();
+      }
+    } catch {}
+  }
+
+  async function checkSession() {
+    try {
+      const savedUser = await getSavedUser();
+      const isLogged  = await authAPI.isLoggedIn();
+      if (savedUser && isLogged) setUser(savedUser);
+    } catch (err) {
+      console.log('checkSession error:', err.message);
+    } finally {
+      setIsChecking(false);
+    }
+  }
+
+  async function handleLogout() {
+    try { await authAPI.logout(); } catch {}
+    await AsyncStorage.multiRemove([
+      'gymtracker_access_token',
+      'gymtracker_refresh_token',
+      'gymtracker_user',
+    ]);
+    setUser(null);
+  }
+
+  function handleUserChange(userData) {
+    setUser(userData);
+  }
+
+  if (isChecking) {
+    return (
+      <View style={{ flex:1, justifyContent:'center', alignItems:'center', backgroundColor:'#0A0A0A' }}>
+        <Text style={{ fontSize:36, marginBottom:16 }}>💪</Text>
+        <ActivityIndicator color="#E8B500" size="large" />
+      </View>
+    );
+  }
+
+  if (!user) return <LoginScreen onLoginSuccess={handleUserChange} />;
+
+  return <MainApp onLogout={handleLogout} />;
 }
 
 export default function App() {

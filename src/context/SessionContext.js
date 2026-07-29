@@ -20,50 +20,29 @@ export function SessionProvider({ children }) {
     try {
       const token    = await AsyncStorage.getItem(KEYS.ACCESS_TOKEN);
       const userData = await AsyncStorage.getItem(KEYS.USER);
+
       if (token && userData) {
         const parsed = JSON.parse(userData);
-        // Normalizar roles al leer
-        const normalized = {
-          ...parsed,
-          roles: Array.isArray(parsed.roles)
-            ? parsed.roles
-            : typeof parsed.roles === 'string'
-              ? (() => { try { return JSON.parse(parsed.roles); } catch { return [parsed.role || 'member']; } })()
-              : [parsed.role || 'member'],
-          activeRole: parsed.activeRole || parsed.active_role || parsed.role || 'member',
-        };
-        setUser(normalized);
+        setUser(parsed);
       }
     } catch (err) {
       console.log('checkSession error:', err.message);
     } finally {
+      // Garantizar que isChecking siempre pasa a false
       setIsChecking(false);
     }
   }
 
-  // login: guarda tokens y usuario, actualiza estado
   async function login(userData, accessToken, refreshToken) {
     try {
-      const normalized = {
-        ...userData,
-        roles: Array.isArray(userData.roles)
-          ? userData.roles
-          : typeof userData.roles === 'string'
-            ? (() => { try { return JSON.parse(userData.roles); } catch { return [userData.role || 'member']; } })()
-            : [userData.role || 'member'],
-        activeRole: userData.activeRole || userData.active_role || userData.role || 'member',
-      };
-
-      // Guardar usuario normalizado
-      await AsyncStorage.setItem(KEYS.USER, JSON.stringify(normalized));
-
-      // Solo sobreescribir tokens si vienen con valor
-      if (accessToken)  await AsyncStorage.setItem(KEYS.ACCESS_TOKEN,  accessToken);
+      await AsyncStorage.setItem(KEYS.USER, JSON.stringify(userData));
+      if (accessToken)  await AsyncStorage.setItem(KEYS.ACCESS_TOKEN, accessToken);
       if (refreshToken) await AsyncStorage.setItem(KEYS.REFRESH_TOKEN, refreshToken);
-
-      setUser(normalized);
+      setUser(userData);
     } catch (err) {
       console.log('login error:', err.message);
+      // Aunque falle el guardado, actualizar el estado igual
+      setUser(userData);
     }
   }
 
