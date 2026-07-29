@@ -84,7 +84,7 @@ const Tab   = createBottomTabNavigator();
 
 function MainApp() {
   const { colors }  = useTheme();
-  const { user }    = useSession();
+  const { user, logout } = useSession();
 
   const activeRole = user?.activeRole || user?.role || 'member';
   const hasGym     = !!(user?.gymId || user?.gym_id);
@@ -125,7 +125,7 @@ function MainApp() {
                   headerTintColor: colors.textPrimary,
                   headerTitleStyle: { fontWeight: '800', fontSize: 17 },
                   headerLeft: () => (
-                    <HamburgerMenu navigation={nav} currentTab={route.name} items={GYM_ITEMS} />
+                    <HamburgerMenu navigation={nav} currentTab={route.name} items={GYM_ITEMS} onLogout={logout} />
                   ),
                   headerRight: () => (
                     <TouchableOpacity onPress={() => nav.navigate('SettingsGymTab')}
@@ -159,7 +159,7 @@ function MainApp() {
                   headerTintColor: colors.textPrimary,
                   headerTitleStyle: { fontWeight: '800', fontSize: 17 },
                   headerLeft: () => (
-                    <HamburgerMenu navigation={navigation} currentTab={route.name} />
+                    <HamburgerMenu navigation={navigation} currentTab={route.name} onLogout={logout} />
                   ),
                   headerRight: () => (
                     <TouchableOpacity onPress={() => navigation.navigate('SettingsTab')}

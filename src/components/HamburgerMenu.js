@@ -5,7 +5,7 @@ import {
   Animated, Platform, StatusBar,
 } from 'react-native';
 import { useTheme } from '../theme/ThemeContext';
-import { useSession } from '../context/SessionContext';
+
 
 const DEFAULT_ITEMS = [
   { id: 'ExercisesTab',    icon: '🏋️', label: 'Ejercicios' },
@@ -16,10 +16,9 @@ const DEFAULT_ITEMS = [
   { id: 'SettingsTab',     icon: '⚙️', label: 'Ajustes' },
 ];
 
-export default function HamburgerMenu({ navigation, currentTab, items }) {
+export default function HamburgerMenu({ navigation, currentTab, items, onLogout }) {
   const MENU_ITEMS = items || DEFAULT_ITEMS;
   const { colors } = useTheme();
-  const { logout } = useSession() || {};
   const [open, setOpen] = useState(false);
   const slideAnim = useRef(new Animated.Value(-300)).current;
 
@@ -108,7 +107,7 @@ export default function HamburgerMenu({ navigation, currentTab, items }) {
 
           {/* Cerrar sesión al fondo */}
           <TouchableOpacity
-            onPress={() => { closeMenu(); setTimeout(logout, 300); }}
+            onPress={() => { closeMenu(); setTimeout(() => onLogout?.(), 300); }}
             style={[styles.logoutBtn, { borderColor: 'rgba(239,68,68,0.3)' }]}
             activeOpacity={0.8}
           >
