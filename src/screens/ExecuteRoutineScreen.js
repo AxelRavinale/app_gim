@@ -10,6 +10,9 @@ import { saveSession } from '../storage/routines';
 import { getExercisesByIds, addWeightSession, addTimeSession, calculateStats, TRACKING_TYPES, formatDuration } from '../storage/exercises';
 import RestTimer from '../components/RestTimer';
 import SerieComment from '../components/SerieComment';
+import CelebrationScreen from '../components/CelebrationScreen';
+import { hablarDiaCompleto } from '../utils/audioHelper';
+import { getFraseAleatoria, FRASES_EJERCICIO_COMPLETO } from '../constants/motivational';
 import { getExerciseAnimation } from '../constants/exerciseAnimations';
 import { useTheme } from '../theme/ThemeContext';
 
@@ -107,6 +110,8 @@ export default function ExecuteRoutineScreen({ route, navigation }) {
   const timerIntervalsRef = useRef({});
 
   // Estado para el modal de comentario
+  const [showCelebration, setShowCelebration] = useState(false);
+  const [celebrationData, setCelebrationData] = useState({ titulo: '', subtitulo: '' });
   const [commentModal, setCommentModal] = useState({
     visible: false, exerciseId: null, serieIndex: null,
     serieNumber: 0, weight: 0, reps: 0,
@@ -155,6 +160,13 @@ export default function ExecuteRoutineScreen({ route, navigation }) {
 
   function setStatus(exerciseId, status) {
     setExerciseStates(prev => prev.map(ex => ex.exerciseId !== exerciseId ? ex : { ...ex, status }));
+    if (status === 'completed') {
+      const exData = exercisesMap[exerciseId];
+      if (exData) {
+        // Pequeña vibración de feedback
+        try { Vibration.vibrate(100); } catch {}
+      }
+    }
   }
 
   function toggleSerieTimer(exerciseId, serieIndex) {
@@ -247,7 +259,13 @@ export default function ExecuteRoutineScreen({ route, navigation }) {
         if (exData.trackingType===TRACKING_TYPES.TIME) { for (const cs of (ex.cardioSeries||[])) { if (cs.duration) await addTimeSession(ex.exerciseId,{duration:cs.duration,distance:cs.distance},session.id); } }
         else { const valid=ex.series.filter(sr=>sr.weight>0||sr.reps>0); if (valid.length>0) await addWeightSession(ex.exerciseId,valid,session.id); }
       }
-      navigation.goBack();
+      // Mostrar celebración
+      const completedCount = exerciseStates.filter(ex => ex.status === 'completed').length;
+      setCelebrationData({
+        titulo: `${dayName} — Semana ${week}`,
+        subtitulo: `${completedCount} de ${exerciseStates.length} ejercicios completados`,
+      });
+      setShowCelebration(true);
     } catch { Alert.alert('Error','No se pudo guardar.'); } finally { setIsSaving(false); }
   }
 
@@ -439,6 +457,14 @@ export default function ExecuteRoutineScreen({ route, navigation }) {
         reps={commentModal.reps}
         onSave={handleCommentSave}
         onSkip={handleCommentSkip}
+      />
+
+      {/* Celebración al terminar */}
+      <CelebrationScreen
+        visible={showCelebration}
+        titulo={celebrationData.titulo}
+        subtitulo={celebrationData.subtitulo}
+        onClose={() => { setShowCelebration(false); navigation.goBack(); }}
       />
 
       <View style={s.footer}>

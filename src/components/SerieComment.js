@@ -7,6 +7,7 @@ import {
   Modal, Animated, KeyboardAvoidingView, Platform,
 } from 'react-native';
 import { useTheme } from '../theme/ThemeContext';
+import { getFraseAleatoria, FRASES_DESCANSO } from '../constants/motivational';
 
 const QUICK_COMMENTS = [
   'Fallé en última rep',
@@ -88,6 +89,9 @@ export default function SerieComment({
             </Text>
           </View>
 
+          <Text style={[s.motivacion, { color: colors.brand }]}>
+            {getFraseAleatoria(FRASES_DESCANSO)}
+          </Text>
           <Text style={[s.title, { color: colors.textPrimary }]}>¿Querés agregar una nota?</Text>
           <Text style={[s.subtitle, { color: colors.textSecondary }]}>
             Opcional — podés registrar cómo te sentiste, si fallaste una rep, etc.
@@ -173,6 +177,7 @@ const makeStyles = (colors) => StyleSheet.create({
   serieBadgeText: { fontSize: 13, fontWeight: '800' },
   serieStats:     { fontSize: 13 },
 
+  motivacion: { fontSize: 14, fontWeight: '800', textAlign: 'center', marginBottom: 4 },
   title:    { fontSize: 17, fontWeight: '900' },
   subtitle: { fontSize: 13, lineHeight: 18 },
 

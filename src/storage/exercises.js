@@ -1,7 +1,4 @@
 // src/storage/exercises.js
-// FIX: normalizar campos snake_case del servidor a camelCase
-// FIX: videoUrl se perdía porque servidor devuelve video_url
-
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 function uuidv4() {
@@ -11,18 +8,31 @@ function uuidv4() {
   });
 }
 
-
 const EXERCISES_KEY = 'gymtracker_exercises';
 const BASE_URL      = 'https://gimnasio-production-7475.up.railway.app';
 
-export const MUSCLE_GROUPS   = ['Pecho','Espalda','Piernas','Hombros','Brazos','Core','Cardio','Otro'];
-export const TRACKING_TYPES  = { WEIGHT: 'weight', TIME: 'time' };
+export const MUSCLE_GROUPS  = ['Pecho','Espalda','Piernas','Hombros','Brazos','Core','Cardio','Otro'];
+export const TRACKING_TYPES = { WEIGHT: 'weight', TIME: 'time' };
+
+// ── formatDate — faltaba esta exportación ────────────────────────────────────
+export function formatDate(dateString) {
+  if (!dateString) return '—';
+  try {
+    const date = new Date(dateString);
+    const now  = new Date();
+    const days = Math.floor((now - date) / (1000 * 60 * 60 * 24));
+    if (days === 0) return 'Hoy';
+    if (days === 1) return 'Ayer';
+    if (days < 7)  return `Hace ${days} días`;
+    return date.toLocaleDateString('es-AR', { day:'2-digit', month:'2-digit', year:'numeric' });
+  } catch { return '—'; }
+}
 
 async function getToken() {
   try { return await AsyncStorage.getItem('gymtracker_access_token'); } catch { return null; }
 }
 
-// Normaliza un ejercicio del servidor (snake_case) al formato local (camelCase)
+// Normaliza ejercicio del servidor (snake_case) al formato local (camelCase)
 function normalizeExercise(ex) {
   return {
     id:           ex.id,
@@ -30,17 +40,17 @@ function normalizeExercise(ex) {
     muscleGroup:  ex.muscle_group   || ex.muscleGroup   || 'Otro',
     trackingType: ex.tracking_type  || ex.trackingType  || 'weight',
     description:  ex.description    || '',
-    videoUrl:     ex.video_url      || ex.videoUrl      || '',   // ← FIX
+    videoUrl:     ex.video_url      || ex.videoUrl      || '',
     videoLocal:   ex.video_local    || ex.videoLocal    || null,
     animationSvg: ex.animation_svg  || ex.animationSvg  || null,
     gymId:        ex.gym_id         || ex.gymId         || null,
     createdAt:    ex.created_at     || ex.createdAt     || new Date().toISOString(),
     sets: (ex.sets || []).map(s => ({
-      id:                   s.id,
-      date:                 s.date        || s.session_date,
-      maxWeightInSession:   s.maxWeightInSession || s.max_weight_in_session || 0,
-      duration:             s.duration    || null,
-      distance:             s.distance    || null,
+      id:                  s.id,
+      date:                s.date        || s.session_date,
+      maxWeightInSession:  s.maxWeightInSession || s.max_weight_in_session || 0,
+      duration:            s.duration    || null,
+      distance:            s.distance    || null,
       series: (s.series || []).map(sr => ({
         serieNumber: sr.serieNumber || sr.serie_number || 0,
         weight:      sr.weight      || 0,
@@ -51,14 +61,12 @@ function normalizeExercise(ex) {
 }
 
 export async function getAllExercises() {
-  // Siempre cargar local primero para tener datos disponibles
   let localData = [];
   try {
     const json = await AsyncStorage.getItem(EXERCISES_KEY);
     localData = json ? JSON.parse(json) : [];
   } catch {}
 
-  // Intentar sincronizar con servidor en background
   try {
     const token = await getToken();
     if (token) {
@@ -69,7 +77,6 @@ export async function getAllExercises() {
         const serverData = await res.json();
         if (Array.isArray(serverData) && serverData.length > 0) {
           const normalized = serverData.map(normalizeExercise);
-          // Merge: conservar videoLocal de los ejercicios locales
           const merged = normalized.map(serverEx => {
             const localEx = localData.find(l => l.id === serverEx.id);
             return { ...serverEx, videoLocal: localEx?.videoLocal || serverEx.videoLocal };
@@ -77,7 +84,6 @@ export async function getAllExercises() {
           await AsyncStorage.setItem(EXERCISES_KEY, JSON.stringify(merged));
           return merged;
         }
-        // Si el servidor devuelve array vacío, usar local (pueden ser ejercicios sin sync)
         return localData;
       }
     }
@@ -107,12 +113,10 @@ export async function saveExercise(data) {
     sets:         [],
   };
 
-  // Guardar local primero
   const all = await getAllExercisesLocal();
   all.push(exercise);
   await AsyncStorage.setItem(EXERCISES_KEY, JSON.stringify(all));
 
-  // Sync con servidor en background
   syncExerciseToServer(exercise).catch(err =>
     console.log('Sync ejercicio falló (guardado local):', err.message)
   );
@@ -147,7 +151,6 @@ async function syncExerciseToServer(exercise) {
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
 
   const serverEx = await res.json();
-  // Actualizar ID local con el del servidor
   const local = await getAllExercisesLocal();
   const updated = local.map(ex => ex.id === exercise.id
     ? { ...ex, id: serverEx.id || ex.id, gymId: serverEx.gym_id }
@@ -164,17 +167,16 @@ export async function updateExercise(id, data) {
   all[idx] = {
     ...all[idx],
     name:         data.name         ?? all[idx].name,
-    muscleGroup:  data.muscleGroup   ?? all[idx].muscleGroup,
-    trackingType: data.trackingType  ?? all[idx].trackingType,
-    description:  data.description   ?? all[idx].description,
-    videoUrl:     data.videoUrl      ?? all[idx].videoUrl,      // ← FIX
-    videoLocal:   data.videoLocal    ?? all[idx].videoLocal,
-    animationSvg: data.animationSvg  ?? all[idx].animationSvg,
+    muscleGroup:  data.muscleGroup  ?? all[idx].muscleGroup,
+    trackingType: data.trackingType ?? all[idx].trackingType,
+    description:  data.description  ?? all[idx].description,
+    videoUrl:     data.videoUrl     ?? all[idx].videoUrl,
+    videoLocal:   data.videoLocal   ?? all[idx].videoLocal,
+    animationSvg: data.animationSvg ?? all[idx].animationSvg,
     updatedAt:    new Date().toISOString(),
   };
   await AsyncStorage.setItem(EXERCISES_KEY, JSON.stringify(all));
 
-  // Sync en background
   const token = await getToken();
   if (token) {
     fetch(`${BASE_URL}/api/exercises/${id}`, {
@@ -208,7 +210,6 @@ export async function deleteExercise(id) {
   }
 }
 
-
 export async function getExerciseById(id) {
   const all = await getAllExercises();
   return all.find(ex => ex.id === id) || null;
@@ -236,7 +237,7 @@ export async function addWeightSession(exerciseId, series, sessionId) {
       serieNumber: i + 1,
       weight:      parseFloat(s.weight) || 0,
       reps:        parseInt(s.reps)     || 0,
-      comment:     s.comment            || '',  // ← comentario por serie
+      comment:     s.comment            || '',
     })),
   };
 
@@ -278,6 +279,7 @@ export function calculateStats(sets = [], trackingType = 'weight') {
   return {
     totalSessions: sets.length,
     maxWeight:     weights.length > 0 ? Math.max(...weights) : null,
+    minWeight:     weights.length > 0 ? Math.min(...weights) : null,
     avgWeight:     weights.length > 0 ? weights.reduce((a,b) => a+b, 0) / weights.length : null,
   };
 }

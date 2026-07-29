@@ -31,6 +31,7 @@ import GymRoutinesScreen       from './src/screens/GymRoutinesScreen';
 import GymCardioScreen         from './src/screens/GymCardioScreen';
 import CardioSelectionScreen   from './src/screens/CardioSelectionScreen';
 import RunRouteScreen          from './src/screens/RunRouteScreen';
+import CronometroScreen        from './src/screens/CronometroScreen';
 import HamburgerMenu           from './src/components/HamburgerMenu';
 import CardioScreen          from './src/screens/CardioScreen';
 import CardioTimerScreen     from './src/screens/CardioTimerScreen';
@@ -184,6 +185,7 @@ function MainApp() {
         <Stack.Screen name="CardioTimer"    component={CardioTimerScreen}      options={{ headerShown:false }} />
         <Stack.Screen name="GymCardio"      component={GymCardioScreen}        options={{ headerShown:false }} />
         <Stack.Screen name="RunRoute"       component={RunRouteScreen}         options={{ headerShown:false }} />
+        <Stack.Screen name="Cronometro"    component={CronometroScreen}       options={{ headerShown:false }} />
         <Stack.Screen name="JoinGym"        component={JoinGymScreen} options={{ headerShown:false }} />
       </Stack.Navigator>
     </NavigationContainer>

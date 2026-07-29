@@ -259,6 +259,13 @@ export default function CardioScreen({ navigation }) {
         >
           <Text style={{ fontSize:11, fontWeight:'800', color: colors.brand }}>⏱ Circuito</Text>
         </TouchableOpacity>
+        {/* Botón cronómetro */}
+        <TouchableOpacity
+          style={{ paddingHorizontal:10, paddingVertical:7, borderRadius:10, backgroundColor:'rgba(96,165,250,0.15)', borderWidth:1, borderColor:'rgba(96,165,250,0.4)' }}
+          onPress={() => navigation.navigate('Cronometro')}
+        >
+          <Text style={{ fontSize:11, fontWeight:'800', color:'#60A5FA' }}>🏁 Crono</Text>
+        </TouchableOpacity>
         {/* Tabs */}
         <View style={[s.tabs, { backgroundColor: colors.background }]}>
           {TABS.map(t => (

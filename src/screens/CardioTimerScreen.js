@@ -5,6 +5,7 @@ import {
   TextInput, Alert, Vibration, Platform, StatusBar,
 } from 'react-native';
 import { useTheme } from '../theme/ThemeContext';
+import { hablarFase, hablarCuentaRegresiva, hablarCircuitoCompleto, detenerAudio } from '../utils/audioHelper';
 
 function uuidv4() {
   return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
@@ -19,25 +20,30 @@ function formatTime(s) {
   return `${String(m).padStart(2,'0')}:${String(sec).padStart(2,'0')}`;
 }
 
+// FIX: mostrar segundos totales correctamente
+function formatTotalTime(s) {
+  if (s < 60) return `${s}s`;
+  const m = Math.floor(s / 60);
+  const sec = s % 60;
+  return sec > 0 ? `${m}m ${sec}s` : `${m}min`;
+}
+
 function makeSerie(duration = 30, rest = 15) {
   return { id: uuidv4(), duration, rest };
 }
 
 function makeExercise(name = 'Ejercicio') {
   return {
-    id:          uuidv4(),
-    name,
-    series:      [makeSerie(30, 15), makeSerie(30, 15), makeSerie(30, 15)],
-    restAfter:   60,
-    uniform:     true,   // todas las series iguales
-    seriesCount: 3,      // cantidad de series cuando uniform=true
+    id: uuidv4(), name,
+    series: [makeSerie(30,15), makeSerie(30,15), makeSerie(30,15)],
+    restAfter: 60, uniform: true, seriesCount: 3,
   };
 }
 
 const DEFAULT_EXERCISES = [
-  { id:'1', name:'Burpees',          series:[makeSerie(30,15),makeSerie(30,15),makeSerie(30,15)], restAfter:60, uniform:true,  seriesCount:3 },
-  { id:'2', name:'Jumping Jacks',    series:[makeSerie(45,15),makeSerie(45,15),makeSerie(45,15)], restAfter:60, uniform:true,  seriesCount:3 },
-  { id:'3', name:'Mountain Climbers',series:[makeSerie(30,20),makeSerie(25,15),makeSerie(20,10)], restAfter:0,  uniform:false, seriesCount:3 },
+  { id:'1', name:'Burpees',           series:[makeSerie(30,15),makeSerie(30,15),makeSerie(30,15)], restAfter:60, uniform:true,  seriesCount:3 },
+  { id:'2', name:'Jumping Jacks',     series:[makeSerie(45,15),makeSerie(45,15),makeSerie(45,15)], restAfter:60, uniform:true,  seriesCount:3 },
+  { id:'3', name:'Mountain Climbers', series:[makeSerie(30,20),makeSerie(25,15),makeSerie(20,10)], restAfter:0,  uniform:false, seriesCount:3 },
 ];
 
 // ── Editor de una serie ───────────────────────────────────────────────────────
@@ -47,8 +53,6 @@ function SerieRow({ serie, index, onChange, onDelete, canDelete, colors }) {
       <View style={[srStyles.num, { backgroundColor: 'rgba(232,181,0,0.15)' }]}>
         <Text style={{ color: colors.brand, fontWeight:'900', fontSize:12 }}>{index + 1}</Text>
       </View>
-
-      {/* Duración */}
       <View style={srStyles.field}>
         <Text style={[srStyles.lbl, { color: colors.brand }]}>DURACIÓN</Text>
         <View style={srStyles.controls}>
@@ -56,12 +60,10 @@ function SerieRow({ serie, index, onChange, onDelete, canDelete, colors }) {
             onPress={() => onChange({ ...serie, duration: Math.max(5, serie.duration - 5) })}>
             <Text style={{ color: colors.textPrimary, fontWeight:'800' }}>−</Text>
           </TouchableOpacity>
-          <TextInput
-            value={String(serie.duration)}
+          <TextInput value={String(serie.duration)}
             onChangeText={v => onChange({ ...serie, duration: Math.max(5, parseInt(v)||5) })}
             keyboardType="numeric" maxLength={3}
-            style={[srStyles.input, { color: colors.textPrimary, borderColor: colors.border, backgroundColor: colors.card }]}
-          />
+            style={[srStyles.input, { color: colors.textPrimary, borderColor: colors.border, backgroundColor: colors.card }]} />
           <TouchableOpacity style={[srStyles.step, { borderColor: colors.border }]}
             onPress={() => onChange({ ...serie, duration: Math.min(600, serie.duration + 5) })}>
             <Text style={{ color: colors.textPrimary, fontWeight:'800' }}>+</Text>
@@ -69,8 +71,6 @@ function SerieRow({ serie, index, onChange, onDelete, canDelete, colors }) {
         </View>
         <Text style={[srStyles.unit, { color: colors.textSecondary }]}>seg</Text>
       </View>
-
-      {/* Descanso */}
       <View style={srStyles.field}>
         <Text style={[srStyles.lbl, { color: '#60A5FA' }]}>DESCANSO</Text>
         <View style={srStyles.controls}>
@@ -78,12 +78,10 @@ function SerieRow({ serie, index, onChange, onDelete, canDelete, colors }) {
             onPress={() => onChange({ ...serie, rest: Math.max(0, serie.rest - 5) })}>
             <Text style={{ color: colors.textPrimary, fontWeight:'800' }}>−</Text>
           </TouchableOpacity>
-          <TextInput
-            value={String(serie.rest)}
+          <TextInput value={String(serie.rest)}
             onChangeText={v => onChange({ ...serie, rest: Math.max(0, parseInt(v)||0) })}
             keyboardType="numeric" maxLength={3}
-            style={[srStyles.input, { color: colors.textPrimary, borderColor: colors.border, backgroundColor: colors.card }]}
-          />
+            style={[srStyles.input, { color: colors.textPrimary, borderColor: colors.border, backgroundColor: colors.card }]} />
           <TouchableOpacity style={[srStyles.step, { borderColor: colors.border }]}
             onPress={() => onChange({ ...serie, rest: Math.min(300, serie.rest + 5) })}>
             <Text style={{ color: colors.textPrimary, fontWeight:'800' }}>+</Text>
@@ -91,7 +89,6 @@ function SerieRow({ serie, index, onChange, onDelete, canDelete, colors }) {
         </View>
         <Text style={[srStyles.unit, { color: colors.textSecondary }]}>seg</Text>
       </View>
-
       {canDelete && (
         <TouchableOpacity style={srStyles.delBtn} onPress={onDelete}>
           <Text style={{ color: '#EF4444', fontSize:14 }}>✕</Text>
@@ -113,11 +110,10 @@ const srStyles = StyleSheet.create({
   delBtn:   { padding:6, flexShrink:0 },
 });
 
-// ── Editor de ejercicio completo ──────────────────────────────────────────────
+// ── Editor de ejercicio ───────────────────────────────────────────────────────
 function ExerciseEditor({ exercise, onChange, onDelete, onMoveUp, onMoveDown, isFirst, isLast, colors }) {
   const [expanded, setExpanded] = useState(true);
-
-  const uniform      = exercise.uniform !== false; // default true
+  const uniform      = exercise.uniform !== false;
   const seriesCount  = exercise.seriesCount || exercise.series.length || 3;
   const templateSerie = exercise.series[0] || makeSerie(30, 15);
 
@@ -132,56 +128,40 @@ function ExerciseEditor({ exercise, onChange, onDelete, onMoveUp, onMoveDown, is
     const last = exercise.series[exercise.series.length - 1];
     onChange({ ...exercise, series: [...exercise.series, makeSerie(last?.duration||30, last?.rest||15)] });
   }
-
-  // Cambiar entre uniforme e individual
   function toggleUniform(val) {
     if (val) {
-      // Pasar a uniforme: todas las series toman los valores de la primera
       const base = exercise.series[0] || makeSerie(30, 15);
       const count = exercise.series.length || 3;
-      const newSeries = Array.from({ length: count }, () => ({ ...base, id: uuidv4() }));
-      onChange({ ...exercise, uniform: true, seriesCount: count, series: newSeries });
+      onChange({ ...exercise, uniform: true, seriesCount: count, series: Array.from({ length: count }, () => ({ ...base, id: uuidv4() })) });
     } else {
       onChange({ ...exercise, uniform: false });
     }
   }
-
-  // Cambiar duración/descanso cuando es uniforme (actualiza todas las series)
   function updateUniform(field, value) {
-    const newSeries = exercise.series.map(s => ({ ...s, [field]: value }));
-    onChange({ ...exercise, series: newSeries });
+    onChange({ ...exercise, series: exercise.series.map(s => ({ ...s, [field]: value })) });
   }
-
-  // Cambiar cantidad de series en modo uniforme
   function updateSeriesCount(newCount) {
     const count = Math.max(1, Math.min(20, newCount));
     const base  = exercise.series[0] || makeSerie(30, 15);
-    const newSeries = Array.from({ length: count }, (_, i) =>
-      exercise.series[i] ? exercise.series[i] : { ...base, id: uuidv4() }
-    );
-    onChange({ ...exercise, seriesCount: count, series: newSeries });
+    onChange({ ...exercise, seriesCount: count, series: Array.from({ length: count }, (_, i) => exercise.series[i] || { ...base, id: uuidv4() }) });
   }
 
   const totalEx = exercise.series.reduce((a,s) => a + s.duration + s.rest, 0);
 
   return (
     <View style={[exStyles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
-      {/* Header ejercicio */}
       <TouchableOpacity style={exStyles.header} onPress={() => setExpanded(p=>!p)} activeOpacity={0.7}>
         <View style={[exStyles.drag, { backgroundColor: 'rgba(232,181,0,0.12)' }]}>
           <Text style={{ color: colors.brand, fontSize:12 }}>☰</Text>
         </View>
         <View style={{ flex:1 }}>
-          <TextInput
-            value={exercise.name}
+          <TextInput value={exercise.name}
             onChangeText={v => onChange({ ...exercise, name: v })}
             style={[exStyles.nameInput, { color: colors.textPrimary, borderColor: colors.border, backgroundColor: colors.background }]}
-            placeholder="Nombre del ejercicio"
-            placeholderTextColor={colors.textLight}
-            onPress={e => e.stopPropagation?.()}
-          />
+            placeholder="Nombre del ejercicio" placeholderTextColor={colors.textLight} />
+          {/* FIX: mostrar segundos totales correctamente */}
           <Text style={{ fontSize:10, color: colors.textSecondary, marginTop:3 }}>
-            {exercise.series.length} serie{exercise.series.length!==1?'s':''} · ~{Math.round(totalEx/60)}min
+            {exercise.series.length} serie{exercise.series.length!==1?'s':''} · {formatTotalTime(totalEx)}
           </Text>
         </View>
         <View style={{ flexDirection:'row', gap:4 }}>
@@ -192,21 +172,14 @@ function ExerciseEditor({ exercise, onChange, onDelete, onMoveUp, onMoveDown, is
         </View>
       </TouchableOpacity>
 
-      {/* Series */}
       {expanded && (
         <View style={{ paddingTop:8 }}>
-
-          {/* Toggle uniforme / individual */}
           <View style={[exStyles.toggleRow, { backgroundColor: colors.background, borderColor: colors.border }]}>
             <Text style={{ fontSize:12, color: colors.textSecondary, flex:1 }}>Todas las series iguales</Text>
-            <View style={{ flexDirection:'row', gap:0, borderRadius:8, overflow:'hidden', borderWidth:1, borderColor: colors.border }}>
+            <View style={{ flexDirection:'row', borderRadius:8, overflow:'hidden', borderWidth:1, borderColor: colors.border }}>
               {[true, false].map(val => (
-                <TouchableOpacity key={String(val)}
-                  onPress={() => toggleUniform(val)}
-                  style={{
-                    paddingHorizontal:14, paddingVertical:6,
-                    backgroundColor: uniform===val ? colors.brand : colors.card,
-                  }}>
+                <TouchableOpacity key={String(val)} onPress={() => toggleUniform(val)}
+                  style={{ paddingHorizontal:14, paddingVertical:6, backgroundColor: uniform===val ? colors.brand : colors.card }}>
                   <Text style={{ fontSize:11, fontWeight:'800', color: uniform===val ? '#0A0A0A' : colors.textSecondary }}>
                     {val ? 'Sí' : 'No'}
                   </Text>
@@ -215,68 +188,50 @@ function ExerciseEditor({ exercise, onChange, onDelete, onMoveUp, onMoveDown, is
             </View>
           </View>
 
-          {/* MODO UNIFORME */}
           {uniform && (
             <View style={[exStyles.uniformBox, { backgroundColor: colors.background, borderColor: colors.border }]}>
-              {/* Cantidad de series */}
               <View style={{ flexDirection:'row', alignItems:'center', gap:10, marginBottom:12 }}>
                 <Text style={{ fontSize:12, color: colors.textSecondary, flex:1 }}>Cantidad de series</Text>
-                <TouchableOpacity style={[srStyles.step, { borderColor: colors.border }]}
-                  onPress={() => updateSeriesCount(seriesCount - 1)}>
+                <TouchableOpacity style={[srStyles.step, { borderColor: colors.border }]} onPress={() => updateSeriesCount(seriesCount - 1)}>
                   <Text style={{ color: colors.textPrimary, fontWeight:'800' }}>−</Text>
                 </TouchableOpacity>
-                <Text style={{ fontSize:20, fontWeight:'900', color: colors.brand, minWidth:28, textAlign:'center' }}>
-                  {seriesCount}
-                </Text>
-                <TouchableOpacity style={[srStyles.step, { borderColor: colors.border }]}
-                  onPress={() => updateSeriesCount(seriesCount + 1)}>
+                <Text style={{ fontSize:20, fontWeight:'900', color: colors.brand, minWidth:28, textAlign:'center' }}>{seriesCount}</Text>
+                <TouchableOpacity style={[srStyles.step, { borderColor: colors.border }]} onPress={() => updateSeriesCount(seriesCount + 1)}>
                   <Text style={{ color: colors.textPrimary, fontWeight:'800' }}>+</Text>
                 </TouchableOpacity>
               </View>
-
-              {/* Duración y descanso únicos */}
               <View style={{ flexDirection:'row', gap:16 }}>
                 <View style={{ flex:1, alignItems:'center' }}>
                   <Text style={{ fontSize:8, fontWeight:'800', color: colors.brand, letterSpacing:1, marginBottom:6 }}>DURACIÓN (s)</Text>
                   <View style={srStyles.controls}>
-                    <TouchableOpacity style={[srStyles.step, { borderColor: colors.border }]}
-                      onPress={() => updateUniform('duration', Math.max(5, templateSerie.duration - 5))}>
+                    <TouchableOpacity style={[srStyles.step, { borderColor: colors.border }]} onPress={() => updateUniform('duration', Math.max(5, templateSerie.duration - 5))}>
                       <Text style={{ color: colors.textPrimary, fontWeight:'800' }}>−</Text>
                     </TouchableOpacity>
-                    <TextInput
-                      value={String(templateSerie.duration)}
+                    <TextInput value={String(templateSerie.duration)}
                       onChangeText={v => updateUniform('duration', Math.max(5, parseInt(v)||5))}
                       keyboardType="numeric" maxLength={3}
-                      style={[srStyles.input, { color: colors.textPrimary, borderColor: colors.border, backgroundColor: colors.card, width:56 }]}
-                    />
-                    <TouchableOpacity style={[srStyles.step, { borderColor: colors.border }]}
-                      onPress={() => updateUniform('duration', Math.min(600, templateSerie.duration + 5))}>
+                      style={[srStyles.input, { color: colors.textPrimary, borderColor: colors.border, backgroundColor: colors.card, width:56 }]} />
+                    <TouchableOpacity style={[srStyles.step, { borderColor: colors.border }]} onPress={() => updateUniform('duration', Math.min(600, templateSerie.duration + 5))}>
                       <Text style={{ color: colors.textPrimary, fontWeight:'800' }}>+</Text>
                     </TouchableOpacity>
                   </View>
                 </View>
-
                 <View style={{ flex:1, alignItems:'center' }}>
                   <Text style={{ fontSize:8, fontWeight:'800', color:'#60A5FA', letterSpacing:1, marginBottom:6 }}>DESCANSO (s)</Text>
                   <View style={srStyles.controls}>
-                    <TouchableOpacity style={[srStyles.step, { borderColor: colors.border }]}
-                      onPress={() => updateUniform('rest', Math.max(0, templateSerie.rest - 5))}>
+                    <TouchableOpacity style={[srStyles.step, { borderColor: colors.border }]} onPress={() => updateUniform('rest', Math.max(0, templateSerie.rest - 5))}>
                       <Text style={{ color: colors.textPrimary, fontWeight:'800' }}>−</Text>
                     </TouchableOpacity>
-                    <TextInput
-                      value={String(templateSerie.rest)}
+                    <TextInput value={String(templateSerie.rest)}
                       onChangeText={v => updateUniform('rest', Math.max(0, parseInt(v)||0))}
                       keyboardType="numeric" maxLength={3}
-                      style={[srStyles.input, { color: colors.textPrimary, borderColor: colors.border, backgroundColor: colors.card, width:56 }]}
-                    />
-                    <TouchableOpacity style={[srStyles.step, { borderColor: colors.border }]}
-                      onPress={() => updateUniform('rest', Math.min(300, templateSerie.rest + 5))}>
+                      style={[srStyles.input, { color: colors.textPrimary, borderColor: colors.border, backgroundColor: colors.card, width:56 }]} />
+                    <TouchableOpacity style={[srStyles.step, { borderColor: colors.border }]} onPress={() => updateUniform('rest', Math.min(300, templateSerie.rest + 5))}>
                       <Text style={{ color: colors.textPrimary, fontWeight:'800' }}>+</Text>
                     </TouchableOpacity>
                   </View>
                 </View>
               </View>
-
               <Text style={{ fontSize:11, color: colors.textSecondary, textAlign:'center', marginTop:10 }}>
                 {seriesCount} serie{seriesCount!==1?'s':''} de {templateSerie.duration}s
                 {templateSerie.rest > 0 ? ` · ${templateSerie.rest}s descanso c/u` : ' · sin descanso'}
@@ -284,7 +239,6 @@ function ExerciseEditor({ exercise, onChange, onDelete, onMoveUp, onMoveDown, is
             </View>
           )}
 
-          {/* MODO INDIVIDUAL */}
           {!uniform && (
             <>
               <View style={{ flexDirection:'row', paddingHorizontal:4, marginBottom:4, marginTop:8 }}>
@@ -294,12 +248,10 @@ function ExerciseEditor({ exercise, onChange, onDelete, onMoveUp, onMoveDown, is
                 <View style={{ width:26 }} />
               </View>
               {exercise.series.map((serie, idx) => (
-                <SerieRow
-                  key={serie.id} serie={serie} index={idx} colors={colors}
+                <SerieRow key={serie.id} serie={serie} index={idx} colors={colors}
                   canDelete={exercise.series.length > 1}
                   onChange={upd => updateSerie(serie.id, upd)}
-                  onDelete={() => deleteSerie(serie.id)}
-                />
+                  onDelete={() => deleteSerie(serie.id)} />
               ))}
               <TouchableOpacity style={[exStyles.addSerie, { borderColor: colors.border }]} onPress={addSerie}>
                 <Text style={{ color: colors.brand, fontWeight:'700', fontSize:13 }}>+ Agregar serie</Text>
@@ -307,7 +259,6 @@ function ExerciseEditor({ exercise, onChange, onDelete, onMoveUp, onMoveDown, is
             </>
           )}
 
-          {/* Descanso después de este ejercicio */}
           <View style={[exStyles.restAfterRow, { backgroundColor: colors.background, borderColor: 'rgba(167,139,250,0.3)' }]}>
             <Text style={{ fontSize:10, fontWeight:'800', color:'#A78BFA', letterSpacing:1 }}>DESCANSO TRAS ESTE EJERCICIO</Text>
             <View style={{ flexDirection:'row', alignItems:'center', gap:10, marginTop:8 }}>
@@ -315,12 +266,10 @@ function ExerciseEditor({ exercise, onChange, onDelete, onMoveUp, onMoveDown, is
                 onPress={() => onChange({ ...exercise, restAfter: Math.max(0, (exercise.restAfter||0) - 5) })}>
                 <Text style={{ color: colors.textPrimary, fontWeight:'800' }}>−</Text>
               </TouchableOpacity>
-              <TextInput
-                value={String(exercise.restAfter ?? 60)}
+              <TextInput value={String(exercise.restAfter ?? 60)}
                 onChangeText={v => onChange({ ...exercise, restAfter: Math.max(0, parseInt(v)||0) })}
                 keyboardType="numeric" maxLength={3}
-                style={[srStyles.input, { color: '#A78BFA', borderColor: 'rgba(167,139,250,0.4)', backgroundColor: colors.card, width:52 }]}
-              />
+                style={[srStyles.input, { color: '#A78BFA', borderColor: 'rgba(167,139,250,0.4)', backgroundColor: colors.card, width:52 }]} />
               <TouchableOpacity style={[srStyles.step, { borderColor: colors.border, width:30, height:30 }]}
                 onPress={() => onChange({ ...exercise, restAfter: Math.min(300, (exercise.restAfter||0) + 5) })}>
                 <Text style={{ color: colors.textPrimary, fontWeight:'800' }}>+</Text>
@@ -338,11 +287,11 @@ function ExerciseEditor({ exercise, onChange, onDelete, onMoveUp, onMoveDown, is
 }
 
 const exStyles = StyleSheet.create({
-  card:      { borderRadius:14, padding:12, borderWidth:1, marginBottom:10 },
-  header:    { flexDirection:'row', alignItems:'center', gap:8 },
-  drag:      { width:30, height:30, borderRadius:9, justifyContent:'center', alignItems:'center', flexShrink:0 },
-  nameInput: { borderWidth:1, borderRadius:10, padding:9, fontSize:14, fontWeight:'700', flex:1 },
-  iconBtn:   { width:28, height:28, borderRadius:8, borderWidth:1, justifyContent:'center', alignItems:'center' },
+  card:         { borderRadius:14, padding:12, borderWidth:1, marginBottom:10 },
+  header:       { flexDirection:'row', alignItems:'center', gap:8 },
+  drag:         { width:30, height:30, borderRadius:9, justifyContent:'center', alignItems:'center', flexShrink:0 },
+  nameInput:    { borderWidth:1, borderRadius:10, padding:9, fontSize:14, fontWeight:'700', flex:1 },
+  iconBtn:      { width:28, height:28, borderRadius:8, borderWidth:1, justifyContent:'center', alignItems:'center' },
   addSerie:     { borderRadius:10, borderWidth:1, borderStyle:'dashed', padding:10, alignItems:'center', marginTop:4 },
   restAfterRow: { borderRadius:10, borderWidth:1, padding:12, marginTop:8, alignItems:'center' },
   toggleRow:    { flexDirection:'row', alignItems:'center', borderRadius:10, borderWidth:1, padding:10, marginBottom:8 },
@@ -350,132 +299,161 @@ const exStyles = StyleSheet.create({
 });
 
 // ── Ejecución del circuito ────────────────────────────────────────────────────
+// FIX: usar refs para evitar stale closures en advancePhase
 function RunCircuit({ exercises, globalRest, onFinish, colors }) {
-  const [phase, setPhase]           = useState('countdown');
-  const [countdown, setCountdown]   = useState(3);
-  const [exIdx, setExIdx]           = useState(0);
-  const [serieIdx, setSerieIdx]     = useState(0);
-  const [timeLeft, setTimeLeft]     = useState(0);
+  const [phase, setPhase]               = useState('countdown');
+  const [countdown, setCountdown]       = useState(3);
+  const [exIdx, setExIdx]               = useState(0);
+  const [serieIdx, setSerieIdx]         = useState(0);
+  const [timeLeft, setTimeLeft]         = useState(0);
   const [totalElapsed, setTotalElapsed] = useState(0);
-  const [paused, setPaused]         = useState(false);
-  const timerRef   = useRef(null);
-  const elapsedRef = useRef(null);
+  const [paused, setPaused]             = useState(false);
 
-  const currentEx    = exercises[exIdx];
-  const currentSerie = currentEx?.series[serieIdx];
+  // Usar refs para el estado actual dentro de los intervalos
+  const phaseRef    = useRef('countdown');
+  const exIdxRef    = useRef(0);
+  const serieIdxRef = useRef(0);
+  const pausedRef   = useRef(false);
+  const timerRef    = useRef(null);
+  const elapsedRef  = useRef(null);
 
   useEffect(() => {
-    elapsedRef.current = setInterval(() => setTotalElapsed(p => p + 1), 1000);
+    elapsedRef.current = setInterval(() => {
+      if (!pausedRef.current) setTotalElapsed(p => p + 1);
+    }, 1000);
+    // Countdown inicial
     timerRef.current = setInterval(() => {
       setCountdown(p => {
-        if (p <= 1) { clearInterval(timerRef.current); startPhase('work', exercises[0].series[0].duration); return 0; }
+        if (p <= 1) {
+          clearInterval(timerRef.current);
+          startPhase('work', exercises[0].series[0].duration);
+          return 0;
+        }
         return p - 1;
       });
     }, 1000);
-    return () => { clearInterval(timerRef.current); clearInterval(elapsedRef.current); };
+    return () => {
+      clearInterval(timerRef.current);
+      clearInterval(elapsedRef.current);
+      detenerAudio();
+    };
   }, []);
 
   function startPhase(newPhase, duration) {
+    clearInterval(timerRef.current);
+    phaseRef.current = newPhase;
     setPhase(newPhase);
     setTimeLeft(duration);
     Vibration.vibrate(newPhase === 'work' ? 150 : [0,100,100,100]);
+    // Audio al cambiar de fase
+    const esUltimaSerie = serieIdxRef.current === (exercises[exIdxRef.current]?.series.length || 1) - 1;
+    hablarFase(newPhase, esUltimaSerie);
+
     timerRef.current = setInterval(() => {
+      if (pausedRef.current) return;
       setTimeLeft(p => {
-        if (p <= 1) { clearInterval(timerRef.current); advancePhase(newPhase); return 0; }
+        if (p <= 1) {
+          clearInterval(timerRef.current);
+          advancePhase(phaseRef.current, exIdxRef.current, serieIdxRef.current);
+          return 0;
+        }
+        // Cuenta regresiva hablada en los últimos 3 segundos
+        if (p <= 4) hablarCuentaRegresiva(p - 1);
         return p - 1;
       });
     }, 1000);
   }
 
-  function advancePhase(currentPhase) {
-    // Estado actual a través de refs para evitar stale closures
-    setExIdx(curEx => {
-      setSerieIdx(curSerie => {
-        const ex    = exercises[curEx];
-        const serie = ex.series[curSerie];
+  // FIX: advancePhase usa parámetros explícitos en lugar de stale state
+  function advancePhase(currentPhase, curEx, curSerie) {
+    const ex    = exercises[curEx];
+    const serie = ex?.series[curSerie];
 
-        if (currentPhase === 'work') {
-          // Termina trabajo → descanso de esta serie
-          if (serie.rest > 0) {
-            startPhase('rest', serie.rest);
-          } else {
-            advanceSerie(curEx, curSerie);
-          }
-        } else if (currentPhase === 'rest') {
-          advanceSerie(curEx, curSerie);
-        } else if (currentPhase === 'global_rest') {
-          const nextEx = curEx + 1;
-          if (nextEx < exercises.length) {
-            setExIdx(nextEx);
-            setSerieIdx(0);
-            startPhase('work', exercises[nextEx].series[0].duration);
-          }
-        }
-        return curSerie;
-      });
-      return curEx;
-    });
+    if (currentPhase === 'work') {
+      if (serie && serie.rest > 0) {
+        startPhase('rest', serie.rest);
+      } else {
+        goToNextSerie(curEx, curSerie);
+      }
+    } else if (currentPhase === 'rest') {
+      goToNextSerie(curEx, curSerie);
+    } else if (currentPhase === 'global_rest') {
+      const nextEx = curEx + 1;
+      if (nextEx < exercises.length) {
+        exIdxRef.current    = nextEx;
+        serieIdxRef.current = 0;
+        setExIdx(nextEx);
+        setSerieIdx(0);
+        startPhase('work', exercises[nextEx].series[0].duration);
+      } else {
+        finishCircuit();
+      }
+    }
   }
 
-  function advanceSerie(curEx, curSerie) {
+  function goToNextSerie(curEx, curSerie) {
     const ex = exercises[curEx];
     const nextSerie = curSerie + 1;
+
     if (nextSerie < ex.series.length) {
       // Siguiente serie del mismo ejercicio
+      serieIdxRef.current = nextSerie;
       setSerieIdx(nextSerie);
       startPhase('work', ex.series[nextSerie].duration);
     } else {
-      // Terminó todas las series de este ejercicio
+      // Terminó todas las series → siguiente ejercicio
       const nextEx = curEx + 1;
       if (nextEx < exercises.length) {
-        // Usar el restAfter del ejercicio actual (individual)
         const restAfter = ex.restAfter ?? globalRest;
         if (restAfter > 0) {
+          // FIX: actualizar refs ANTES de iniciar la fase global_rest
+          // para que advancePhase tenga los índices correctos cuando termine
+          exIdxRef.current    = nextEx;
+          serieIdxRef.current = 0;
+          setExIdx(nextEx);
+          setSerieIdx(0);
           startPhase('global_rest', restAfter);
-          setTimeout(() => { setExIdx(nextEx); setSerieIdx(0); }, restAfter * 1000 + 100);
         } else {
+          exIdxRef.current    = nextEx;
+          serieIdxRef.current = 0;
           setExIdx(nextEx);
           setSerieIdx(0);
           startPhase('work', exercises[nextEx].series[0].duration);
         }
       } else {
-        // Terminó todo
-        setPhase('done');
-        clearInterval(elapsedRef.current);
-        Vibration.vibrate([0,300,200,300,200,300]);
+        finishCircuit();
       }
     }
   }
 
+  function finishCircuit() {
+    clearInterval(timerRef.current);
+    clearInterval(elapsedRef.current);
+    phaseRef.current = 'done';
+    setPhase('done');
+    Vibration.vibrate([0,300,200,300,200,300]);
+    setTimeout(() => hablarCircuitoCompleto(), 500);
+  }
+
   function togglePause() {
-    if (paused) {
-      setPaused(false);
-      elapsedRef.current = setInterval(() => setTotalElapsed(p => p + 1), 1000);
-      timerRef.current = setInterval(() => {
-        setTimeLeft(p => {
-          if (p <= 1) { clearInterval(timerRef.current); advancePhase(phase); return 0; }
-          return p - 1;
-        });
-      }, 1000);
-    } else {
-      setPaused(true);
-      clearInterval(timerRef.current);
-      clearInterval(elapsedRef.current);
-    }
+    pausedRef.current = !pausedRef.current;
+    setPaused(p => !p);
   }
 
   const phaseCfg = {
-    countdown:   { label:'PREPARATE',   color:'#E8B500', bg:'rgba(232,181,0,0.12)' },
-    work:        { label:'¡TRABAJÁ!',   color:'#22C55E', bg:'rgba(34,197,94,0.12)' },
-    rest:        { label:'DESCANSO',    color:'#60A5FA', bg:'rgba(96,165,250,0.12)' },
-    global_rest: { label:'CAMBIO',      color:'#A78BFA', bg:'rgba(167,139,250,0.12)' },
-    done:        { label:'¡LISTO!',     color:'#E8B500', bg:'rgba(232,181,0,0.12)' },
+    countdown:   { label:'PREPARATE',  color:'#E8B500', bg:'rgba(232,181,0,0.12)' },
+    work:        { label:'¡TRABAJÁ!',  color:'#22C55E', bg:'rgba(34,197,94,0.12)' },
+    rest:        { label:'DESCANSO',   color:'#60A5FA', bg:'rgba(96,165,250,0.12)' },
+    global_rest: { label:'CAMBIO',     color:'#A78BFA', bg:'rgba(167,139,250,0.12)' },
+    done:        { label:'¡LISTO!',    color:'#E8B500', bg:'rgba(232,181,0,0.12)' },
   };
   const cfg = phaseCfg[phase] || phaseCfg.work;
 
-  const totalSeries = exercises.reduce((a,e) => a + e.series.length, 0);
-  const doneSeries  = exercises.slice(0,exIdx).reduce((a,e) => a + e.series.length, 0) + serieIdx;
-  const progress    = totalSeries > 0 ? doneSeries / totalSeries : 0;
+  const currentEx    = exercises[exIdx];
+  const currentSerie = currentEx?.series[serieIdx];
+  const totalSeries  = exercises.reduce((a,e) => a + e.series.length, 0);
+  const doneSeries   = exercises.slice(0,exIdx).reduce((a,e) => a + e.series.length, 0) + serieIdx;
+  const progress     = totalSeries > 0 ? doneSeries / totalSeries : 0;
 
   return (
     <View style={{ flex:1, backgroundColor: colors.background }}>
@@ -506,11 +484,15 @@ function RunCircuit({ exercises, globalRest, onFinish, colors }) {
         ) : (
           <>
             <View style={[runStyles.phaseBadge, { backgroundColor: cfg.bg }]}>
-              <Text style={[runStyles.phaseText, { color: cfg.color }]}>{cfg.label}</Text>
+              <Text style={[runStyles.phaseText, { color: cfg.color }]}>
+                {paused ? '⏸ PAUSADO' : cfg.label}
+              </Text>
             </View>
 
             <Text style={[runStyles.exName, { color: colors.textPrimary }]}>
-              {phase === 'global_rest' ? `Siguiente: ${exercises[exIdx]?.name}` : currentEx?.name}
+              {phase === 'global_rest'
+                ? `Siguiente: ${exercises[exIdx]?.name}`
+                : currentEx?.name}
             </Text>
 
             {phase === 'work' && (
@@ -532,20 +514,18 @@ function RunCircuit({ exercises, globalRest, onFinish, colors }) {
               Ej. {exIdx + 1}/{exercises.length} · Tiempo: {formatTime(totalElapsed)}
             </Text>
 
-            {/* Próximo ejercicio */}
-            {(phase === 'global_rest' || (exIdx < exercises.length - 1 && serieIdx === currentEx?.series.length - 1)) && (
+            {phase === 'global_rest' && exIdx < exercises.length && (
               <View style={{ padding:12, borderRadius:12, backgroundColor: colors.card, borderWidth:1, borderColor: colors.border, width:'100%', alignItems:'center' }}>
                 <Text style={{ fontSize:10, color: colors.textSecondary }}>SIGUIENTE EJERCICIO</Text>
                 <Text style={{ fontSize:16, fontWeight:'800', color: colors.textPrimary, marginTop:3 }}>
-                  {exercises[exIdx + 1]?.name}
+                  {exercises[exIdx]?.name}
                 </Text>
               </View>
             )}
 
             <TouchableOpacity
               style={{ borderRadius:12, paddingHorizontal:32, paddingVertical:13, borderWidth:1, borderColor: colors.border, backgroundColor: colors.card }}
-              onPress={togglePause}
-            >
+              onPress={togglePause}>
               <Text style={{ color: colors.textPrimary, fontWeight:'700', fontSize:15 }}>
                 {paused ? '▶ Continuar' : '⏸ Pausar'}
               </Text>
@@ -578,12 +558,8 @@ export default function CardioTimerScreen({ navigation }) {
     a + ex.series.reduce((b,s) => b + s.duration + s.rest, 0)
     + (i < exercises.length - 1 ? (ex.restAfter ?? globalRest) : 0), 0);
 
-  function addExercise() {
-    setExercises(p => [...p, makeExercise(`Ejercicio ${p.length + 1}`)]);
-  }
-  function updateExercise(id, upd) {
-    setExercises(p => p.map(e => e.id === id ? upd : e));
-  }
+  function addExercise() { setExercises(p => [...p, makeExercise(`Ejercicio ${p.length + 1}`)]); }
+  function updateExercise(id, upd) { setExercises(p => p.map(e => e.id === id ? upd : e)); }
   function deleteExercise(id) {
     if (exercises.length <= 1) { Alert.alert('', 'Necesitás al menos un ejercicio'); return; }
     setExercises(p => p.filter(e => e.id !== id));
@@ -604,13 +580,12 @@ export default function CardioTimerScreen({ navigation }) {
         <View style={{ flex:1 }}>
           <Text style={[s.title, { color: colors.textPrimary }]}>Circuito cardio</Text>
           <Text style={{ fontSize:12, color: colors.textSecondary }}>
-            ~{Math.round(totalTime/60)} min · {exercises.length} ejercicio{exercises.length!==1?'s':''}
+            ~{formatTotalTime(totalTime)} · {exercises.length} ejercicio{exercises.length!==1?'s':''}
           </Text>
         </View>
       </View>
 
       <ScrollView contentContainerStyle={{ padding:16, paddingBottom:140 }}>
-        {/* Info descanso entre ejercicios */}
         <View style={[s.globalRestCard, { backgroundColor:'rgba(167,139,250,0.08)', borderColor:'rgba(167,139,250,0.25)' }]}>
           <Text style={[s.sectionLbl, { color:'#A78BFA' }]}>DESCANSO ENTRE EJERCICIOS</Text>
           <Text style={{ fontSize:12, color: colors.textSecondary, marginTop:6 }}>
@@ -620,13 +595,11 @@ export default function CardioTimerScreen({ navigation }) {
 
         <Text style={[s.sectionLbl, { color: colors.brand, marginBottom:10, marginTop:4 }]}>EJERCICIOS</Text>
         {exercises.map((ex, idx) => (
-          <ExerciseEditor
-            key={ex.id} exercise={ex} colors={colors}
+          <ExerciseEditor key={ex.id} exercise={ex} colors={colors}
             onChange={upd => updateExercise(ex.id, upd)}
             onDelete={() => deleteExercise(ex.id)}
             onMoveUp={() => moveUp(idx)} onMoveDown={() => moveDown(idx)}
-            isFirst={idx===0} isLast={idx===exercises.length-1}
-          />
+            isFirst={idx===0} isLast={idx===exercises.length-1} />
         ))}
 
         <TouchableOpacity style={[s.addBtn, { borderColor: colors.border }]} onPress={addExercise}>
@@ -639,7 +612,7 @@ export default function CardioTimerScreen({ navigation }) {
           {[
             { label:'Ejercicios', val: exercises.length },
             { label:'Series',     val: exercises.reduce((a,e)=>a+e.series.length,0) },
-            { label:'~Tiempo',    val: `${Math.round(totalTime/60)}min` },
+            { label:'~Tiempo',    val: formatTotalTime(totalTime) },
           ].map((item,i) => (
             <View key={i} style={{ alignItems:'center', flex:1 }}>
               <Text style={{ fontSize:18, fontWeight:'900', color: colors.brand }}>{item.val}</Text>
@@ -664,7 +637,6 @@ const makeStyles = (colors) => StyleSheet.create({
   title:         { fontSize:20, fontWeight:'900' },
   globalRestCard:{ borderRadius:14, padding:14, borderWidth:1, marginBottom:16 },
   sectionLbl:    { fontSize:10, fontWeight:'800', letterSpacing:1.5 },
-  stepper:       { width:46, height:46, borderRadius:13, borderWidth:1, justifyContent:'center', alignItems:'center' },
   addBtn:        { borderRadius:14, borderWidth:1.5, borderStyle:'dashed', padding:14, alignItems:'center', marginTop:4 },
   footer:        { padding:16, paddingBottom: Platform.OS==='ios'?32:16, borderTopWidth:0.5 },
   summaryRow:    { flexDirection:'row', borderRadius:12, padding:12, borderWidth:0.5, marginBottom:12 },
