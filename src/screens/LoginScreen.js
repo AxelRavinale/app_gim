@@ -13,9 +13,9 @@ const BASE_URL = 'https://gimnasio-production-7475.up.railway.app';
 function PasswordInput({ value, onChangeText, placeholder, style, placeholderTextColor }) {
   const [show, setShow] = useState(false);
   return (
-    <View style={{ position:'relative', justifyContent:'center' }}>
+    <View>
       <TextInput
-        style={[style, { paddingRight: 48 }]}
+        style={[style, { paddingRight: 50 }]}
         value={value}
         onChangeText={onChangeText}
         placeholder={placeholder}
@@ -26,10 +26,19 @@ function PasswordInput({ value, onChangeText, placeholder, style, placeholderTex
       />
       <TouchableOpacity
         onPress={() => setShow(p => !p)}
-        style={{ position:'absolute', right:14, padding:4 }}
+        style={{
+          position: 'absolute',
+          right: 14,
+          top: 0,
+          bottom: 4,
+          justifyContent: 'center',
+          paddingHorizontal: 4,
+          zIndex: 10,
+        }}
         activeOpacity={0.7}
+        hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
       >
-        <Text style={{ fontSize:18 }}>{show ? '🙈' : '👁️'}</Text>
+        <Text style={{ fontSize: 18 }}>{show ? '🙈' : '👁️'}</Text>
       </TouchableOpacity>
     </View>
   );
@@ -97,7 +106,7 @@ export default function LoginScreen({ onLoginSuccess }) {
           gymCode.trim() || null
         );
       }
-      onLoginSuccess(data.user, data.accessToken, data.refreshToken);
+      onLoginSuccess(data.user);
     } catch (error) {
       Alert.alert('Error', error.message || 'Algo salió mal. Intentá de nuevo.');
     } finally { setIsLoading(false); }
