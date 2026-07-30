@@ -16,8 +16,9 @@ export default function SelectionScreen({ navigation }) {
       {/* Logo fondo */}
       <Image
         source={require('../../assets/icon.png')}
-        style={StyleSheet.absoluteFillObject}
+        style={[StyleSheet.absoluteFillObject, { width: '100%', height: '100%' }]}
         resizeMode="cover"
+        resizeMethod="scale"
       />
 
       {/* Overlay */}
