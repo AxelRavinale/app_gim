@@ -2,10 +2,13 @@
 import React, { useState, useEffect, useRef } from 'react';
 import {
   View, Text, TouchableOpacity, StyleSheet, ScrollView,
-  TextInput, Alert, Vibration, Platform, StatusBar,
+  TextInput, Alert, Vibration, Platform, StatusBar, Modal,
 } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useTheme } from '../theme/ThemeContext';
 import { hablarFase, hablarCuentaRegresiva, hablarCircuitoCompleto, detenerAudio } from '../utils/audioHelper';
+
+const SAVED_CIRCUITS_KEY = 'gymtracker_saved_circuits';
 
 function uuidv4() {
   return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
@@ -20,7 +23,6 @@ function formatTime(s) {
   return `${String(m).padStart(2,'0')}:${String(sec).padStart(2,'0')}`;
 }
 
-// FIX: mostrar segundos totales correctamente
 function formatTotalTime(s) {
   if (s < 60) return `${s}s`;
   const m = Math.floor(s / 60);
@@ -46,7 +48,199 @@ const DEFAULT_EXERCISES = [
   { id:'3', name:'Mountain Climbers', series:[makeSerie(30,20),makeSerie(25,15),makeSerie(20,10)], restAfter:0,  uniform:false, seriesCount:3 },
 ];
 
-// ── Editor de una serie ───────────────────────────────────────────────────────
+// ── AsyncStorage helpers ──────────────────────────────────────────────────────
+async function loadSavedCircuits() {
+  try {
+    const raw = await AsyncStorage.getItem(SAVED_CIRCUITS_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch { return []; }
+}
+
+async function saveCircuits(circuits) {
+  try {
+    await AsyncStorage.setItem(SAVED_CIRCUITS_KEY, JSON.stringify(circuits));
+  } catch {}
+}
+
+// ── Modal: guardar circuito ───────────────────────────────────────────────────
+function SaveCircuitModal({ exercises, globalRest, onClose, onSaved, colors }) {
+  const [name, setName] = useState('');
+  const [saving, setSaving] = useState(false);
+
+  async function handleSave() {
+    if (!name.trim()) { Alert.alert('', 'Ingresá un nombre para el circuito'); return; }
+    setSaving(true);
+    try {
+      const circuits = await loadSavedCircuits();
+      const newCircuit = {
+        id: uuidv4(),
+        name: name.trim(),
+        exercises,
+        globalRest,
+        createdAt: new Date().toISOString(),
+        totalTime: exercises.reduce((a,ex,i) =>
+          a + ex.series.reduce((b,s) => b + s.duration + s.rest, 0)
+          + (i < exercises.length - 1 ? (ex.restAfter ?? globalRest) : 0), 0),
+      };
+      await saveCircuits([...circuits, newCircuit]);
+      onSaved();
+      onClose();
+    } catch {
+      Alert.alert('Error', 'No se pudo guardar el circuito');
+    } finally { setSaving(false); }
+  }
+
+  return (
+    <Modal visible transparent animationType="fade">
+      <View style={{ flex:1, backgroundColor:'rgba(0,0,0,0.85)', justifyContent:'center', alignItems:'center', padding:20 }}>
+        <View style={{ width:'100%', maxWidth:380, backgroundColor: colors.card, borderRadius:20, padding:24, borderWidth:1, borderColor: colors.border }}>
+          <Text style={{ fontSize:18, fontWeight:'900', color: colors.textPrimary, marginBottom:6 }}>
+            Guardar circuito
+          </Text>
+          <Text style={{ fontSize:12, color: colors.textSecondary, marginBottom:20 }}>
+            {exercises.length} ejercicio{exercises.length!==1?'s':''} · ~{formatTotalTime(
+              exercises.reduce((a,ex,i) =>
+                a + ex.series.reduce((b,s) => b + s.duration + s.rest, 0)
+                + (i < exercises.length - 1 ? (ex.restAfter ?? globalRest) : 0), 0)
+            )}
+          </Text>
+          <Text style={{ fontSize:10, fontWeight:'800', color: colors.brand, letterSpacing:1.5, marginBottom:8 }}>
+            NOMBRE DEL CIRCUITO
+          </Text>
+          <TextInput
+            value={name}
+            onChangeText={setName}
+            placeholder="Ej: HIIT mañanero, Cardio intenso..."
+            placeholderTextColor={colors.textSecondary}
+            style={{
+              backgroundColor: colors.background, borderWidth:1, borderColor: colors.border,
+              borderRadius:12, padding:14, fontSize:15, color: colors.textPrimary, marginBottom:20,
+            }}
+            autoFocus
+            maxLength={50}
+          />
+          <View style={{ flexDirection:'row', gap:10 }}>
+            <TouchableOpacity
+              onPress={onClose}
+              style={{ flex:1, borderRadius:12, padding:14, alignItems:'center', borderWidth:1, borderColor: colors.border }}>
+              <Text style={{ color: colors.textPrimary, fontWeight:'700' }}>Cancelar</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={handleSave}
+              disabled={saving}
+              style={{ flex:2, borderRadius:12, padding:14, alignItems:'center', backgroundColor: colors.brand }}>
+              <Text style={{ color:'#0A0A0A', fontWeight:'900', fontSize:15 }}>
+                {saving ? 'Guardando...' : '💾 Guardar'}
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
+// ── Modal: mis circuitos ──────────────────────────────────────────────────────
+function MyCircuitsModal({ onClose, onLoad, colors }) {
+  const [circuits, setCircuits] = useState([]);
+  const [loading, setLoading]   = useState(true);
+
+  useEffect(() => { load(); }, []);
+
+  async function load() {
+    setLoading(true);
+    setCircuits(await loadSavedCircuits());
+    setLoading(false);
+  }
+
+  async function handleDelete(id) {
+    Alert.alert('Eliminar circuito', '¿Estás seguro?', [
+      { text: 'Cancelar', style: 'cancel' },
+      { text: 'Eliminar', style: 'destructive', onPress: async () => {
+        const updated = circuits.filter(c => c.id !== id);
+        await saveCircuits(updated);
+        setCircuits(updated);
+      }},
+    ]);
+  }
+
+  return (
+    <Modal visible transparent animationType="slide">
+      <View style={{ flex:1, backgroundColor:'rgba(0,0,0,0.85)', justifyContent:'flex-end' }}>
+        <View style={{ backgroundColor: colors.card, borderTopLeftRadius:24, borderTopRightRadius:24, padding:24, maxHeight:'80%', borderWidth:1, borderColor: colors.border }}>
+          <View style={{ flexDirection:'row', alignItems:'center', marginBottom:20 }}>
+            <Text style={{ flex:1, fontSize:18, fontWeight:'900', color: colors.textPrimary }}>Mis circuitos</Text>
+            <TouchableOpacity onPress={onClose} style={{ padding:4 }}>
+              <Text style={{ fontSize:20, color: colors.textSecondary }}>✕</Text>
+            </TouchableOpacity>
+          </View>
+
+          {loading ? (
+            <Text style={{ textAlign:'center', color: colors.textSecondary, padding:20 }}>Cargando...</Text>
+          ) : circuits.length === 0 ? (
+            <View style={{ alignItems:'center', padding:32 }}>
+              <Text style={{ fontSize:40, marginBottom:12 }}>📋</Text>
+              <Text style={{ fontSize:16, fontWeight:'800', color: colors.textPrimary, marginBottom:6 }}>
+                No tenés circuitos guardados
+              </Text>
+              <Text style={{ fontSize:13, color: colors.textSecondary, textAlign:'center' }}>
+                Armá un circuito y tocá "Guardar" para reutilizarlo después
+              </Text>
+            </View>
+          ) : (
+            <ScrollView showsVerticalScrollIndicator={false}>
+              {circuits.map(c => (
+                <View key={c.id} style={{
+                  backgroundColor: colors.background, borderRadius:14, padding:16,
+                  marginBottom:10, borderWidth:1, borderColor: colors.border,
+                }}>
+                  <View style={{ flexDirection:'row', alignItems:'center', gap:10 }}>
+                    <View style={{ flex:1 }}>
+                      <Text style={{ fontSize:15, fontWeight:'800', color: colors.textPrimary, marginBottom:3 }}>
+                        {c.name}
+                      </Text>
+                      <Text style={{ fontSize:12, color: colors.textSecondary }}>
+                        {c.exercises.length} ejercicio{c.exercises.length!==1?'s':''} · ~{formatTotalTime(c.totalTime)}
+                        {' · '}{new Date(c.createdAt).toLocaleDateString('es-AR', { day:'numeric', month:'short' })}
+                      </Text>
+                      {/* Ejercicios del circuito */}
+                      <View style={{ flexDirection:'row', flexWrap:'wrap', gap:4, marginTop:6 }}>
+                        {c.exercises.slice(0,4).map((ex,i) => (
+                          <View key={i} style={{ backgroundColor:'rgba(232,181,0,0.1)', borderRadius:6, paddingHorizontal:8, paddingVertical:3 }}>
+                            <Text style={{ fontSize:10, color: colors.brand, fontWeight:'700' }}>{ex.name}</Text>
+                          </View>
+                        ))}
+                        {c.exercises.length > 4 && (
+                          <View style={{ backgroundColor: colors.card, borderRadius:6, paddingHorizontal:8, paddingVertical:3, borderWidth:1, borderColor: colors.border }}>
+                            <Text style={{ fontSize:10, color: colors.textSecondary }}>+{c.exercises.length - 4} más</Text>
+                          </View>
+                        )}
+                      </View>
+                    </View>
+                  </View>
+                  <View style={{ flexDirection:'row', gap:8, marginTop:12 }}>
+                    <TouchableOpacity
+                      onPress={() => handleDelete(c.id)}
+                      style={{ borderRadius:10, padding:10, borderWidth:1, borderColor:'rgba(239,68,68,0.3)', backgroundColor:'rgba(239,68,68,0.08)' }}>
+                      <Text style={{ color:'#EF4444', fontSize:13 }}>🗑</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      onPress={() => { onLoad(c); onClose(); }}
+                      style={{ flex:1, borderRadius:10, padding:10, alignItems:'center', backgroundColor: colors.brand }}>
+                      <Text style={{ color:'#0A0A0A', fontWeight:'900', fontSize:13 }}>▶ Cargar circuito</Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              ))}
+            </ScrollView>
+          )}
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
+// ── SerieRow ──────────────────────────────────────────────────────────────────
 function SerieRow({ serie, index, onChange, onDelete, canDelete, colors }) {
   return (
     <View style={[srStyles.row, { backgroundColor: colors.background, borderColor: colors.border }]}>
@@ -110,7 +304,7 @@ const srStyles = StyleSheet.create({
   delBtn:   { padding:6, flexShrink:0 },
 });
 
-// ── Editor de ejercicio ───────────────────────────────────────────────────────
+// ── ExerciseEditor ────────────────────────────────────────────────────────────
 function ExerciseEditor({ exercise, onChange, onDelete, onMoveUp, onMoveDown, isFirst, isLast, colors }) {
   const [expanded, setExpanded] = useState(true);
   const uniform      = exercise.uniform !== false;
@@ -130,7 +324,7 @@ function ExerciseEditor({ exercise, onChange, onDelete, onMoveUp, onMoveDown, is
   }
   function toggleUniform(val) {
     if (val) {
-      const base = exercise.series[0] || makeSerie(30, 15);
+      const base  = exercise.series[0] || makeSerie(30, 15);
       const count = exercise.series.length || 3;
       onChange({ ...exercise, uniform: true, seriesCount: count, series: Array.from({ length: count }, () => ({ ...base, id: uuidv4() })) });
     } else {
@@ -159,7 +353,6 @@ function ExerciseEditor({ exercise, onChange, onDelete, onMoveUp, onMoveDown, is
             onChangeText={v => onChange({ ...exercise, name: v })}
             style={[exStyles.nameInput, { color: colors.textPrimary, borderColor: colors.border, backgroundColor: colors.background }]}
             placeholder="Nombre del ejercicio" placeholderTextColor={colors.textLight} />
-          {/* FIX: mostrar segundos totales correctamente */}
           <Text style={{ fontSize:10, color: colors.textSecondary, marginTop:3 }}>
             {exercise.series.length} serie{exercise.series.length!==1?'s':''} · {formatTotalTime(totalEx)}
           </Text>
@@ -275,9 +468,6 @@ function ExerciseEditor({ exercise, onChange, onDelete, onMoveUp, onMoveDown, is
                 <Text style={{ color: colors.textPrimary, fontWeight:'800' }}>+</Text>
               </TouchableOpacity>
               <Text style={{ fontSize:12, color: colors.textSecondary }}>segundos</Text>
-              {(exercise.restAfter||0) === 0 && (
-                <Text style={{ fontSize:11, color: '#A78BFA', fontWeight:'700' }}>sin descanso</Text>
-              )}
             </View>
           </View>
         </View>
@@ -298,8 +488,7 @@ const exStyles = StyleSheet.create({
   uniformBox:   { borderRadius:10, borderWidth:1, padding:14, marginBottom:8 },
 });
 
-// ── Ejecución del circuito ────────────────────────────────────────────────────
-// FIX: usar refs para evitar stale closures en advancePhase
+// ── RunCircuit ────────────────────────────────────────────────────────────────
 function RunCircuit({ exercises, globalRest, onFinish, colors }) {
   const [phase, setPhase]               = useState('countdown');
   const [countdown, setCountdown]       = useState(3);
@@ -309,7 +498,6 @@ function RunCircuit({ exercises, globalRest, onFinish, colors }) {
   const [totalElapsed, setTotalElapsed] = useState(0);
   const [paused, setPaused]             = useState(false);
 
-  // Usar refs para el estado actual dentro de los intervalos
   const phaseRef    = useRef('countdown');
   const exIdxRef    = useRef(0);
   const serieIdxRef = useRef(0);
@@ -321,7 +509,6 @@ function RunCircuit({ exercises, globalRest, onFinish, colors }) {
     elapsedRef.current = setInterval(() => {
       if (!pausedRef.current) setTotalElapsed(p => p + 1);
     }, 1000);
-    // Countdown inicial
     timerRef.current = setInterval(() => {
       setCountdown(p => {
         if (p <= 1) {
@@ -345,10 +532,8 @@ function RunCircuit({ exercises, globalRest, onFinish, colors }) {
     setPhase(newPhase);
     setTimeLeft(duration);
     Vibration.vibrate(newPhase === 'work' ? 150 : [0,100,100,100]);
-    // Audio al cambiar de fase
     const esUltimaSerie = serieIdxRef.current === (exercises[exIdxRef.current]?.series.length || 1) - 1;
     hablarFase(newPhase, esUltimaSerie);
-
     timerRef.current = setInterval(() => {
       if (pausedRef.current) return;
       setTimeLeft(p => {
@@ -357,24 +542,18 @@ function RunCircuit({ exercises, globalRest, onFinish, colors }) {
           advancePhase(phaseRef.current, exIdxRef.current, serieIdxRef.current);
           return 0;
         }
-        // Cuenta regresiva hablada en los últimos 3 segundos
         if (p <= 4) hablarCuentaRegresiva(p - 1);
         return p - 1;
       });
     }, 1000);
   }
 
-  // FIX: advancePhase usa parámetros explícitos en lugar de stale state
   function advancePhase(currentPhase, curEx, curSerie) {
     const ex    = exercises[curEx];
     const serie = ex?.series[curSerie];
-
     if (currentPhase === 'work') {
-      if (serie && serie.rest > 0) {
-        startPhase('rest', serie.rest);
-      } else {
-        goToNextSerie(curEx, curSerie);
-      }
+      if (serie && serie.rest > 0) { startPhase('rest', serie.rest); }
+      else { goToNextSerie(curEx, curSerie); }
     } else if (currentPhase === 'rest') {
       goToNextSerie(curEx, curSerie);
     } else if (currentPhase === 'global_rest') {
@@ -382,47 +561,29 @@ function RunCircuit({ exercises, globalRest, onFinish, colors }) {
       if (nextEx < exercises.length) {
         exIdxRef.current    = nextEx;
         serieIdxRef.current = 0;
-        setExIdx(nextEx);
-        setSerieIdx(0);
+        setExIdx(nextEx); setSerieIdx(0);
         startPhase('work', exercises[nextEx].series[0].duration);
-      } else {
-        finishCircuit();
-      }
+      } else { finishCircuit(); }
     }
   }
 
   function goToNextSerie(curEx, curSerie) {
     const ex = exercises[curEx];
     const nextSerie = curSerie + 1;
-
     if (nextSerie < ex.series.length) {
-      // Siguiente serie del mismo ejercicio
       serieIdxRef.current = nextSerie;
       setSerieIdx(nextSerie);
       startPhase('work', ex.series[nextSerie].duration);
     } else {
-      // Terminó todas las series → siguiente ejercicio
       const nextEx = curEx + 1;
       if (nextEx < exercises.length) {
         const restAfter = ex.restAfter ?? globalRest;
-        if (restAfter > 0) {
-          // FIX: actualizar refs ANTES de iniciar la fase global_rest
-          // para que advancePhase tenga los índices correctos cuando termine
-          exIdxRef.current    = nextEx;
-          serieIdxRef.current = 0;
-          setExIdx(nextEx);
-          setSerieIdx(0);
-          startPhase('global_rest', restAfter);
-        } else {
-          exIdxRef.current    = nextEx;
-          serieIdxRef.current = 0;
-          setExIdx(nextEx);
-          setSerieIdx(0);
-          startPhase('work', exercises[nextEx].series[0].duration);
-        }
-      } else {
-        finishCircuit();
-      }
+        exIdxRef.current    = nextEx;
+        serieIdxRef.current = 0;
+        setExIdx(nextEx); setSerieIdx(0);
+        if (restAfter > 0) { startPhase('global_rest', restAfter); }
+        else { startPhase('work', exercises[nextEx].series[0].duration); }
+      } else { finishCircuit(); }
     }
   }
 
@@ -461,7 +622,6 @@ function RunCircuit({ exercises, globalRest, onFinish, colors }) {
       <View style={{ height:4, backgroundColor: colors.border }}>
         <View style={{ height:4, width:`${progress*100}%`, backgroundColor: colors.brand }} />
       </View>
-
       <View style={{ flex:1, justifyContent:'center', alignItems:'center', padding:24, gap:20 }}>
         {phase === 'countdown' ? (
           <>
@@ -488,19 +648,14 @@ function RunCircuit({ exercises, globalRest, onFinish, colors }) {
                 {paused ? '⏸ PAUSADO' : cfg.label}
               </Text>
             </View>
-
             <Text style={[runStyles.exName, { color: colors.textPrimary }]}>
-              {phase === 'global_rest'
-                ? `Siguiente: ${exercises[exIdx]?.name}`
-                : currentEx?.name}
+              {phase === 'global_rest' ? `Siguiente: ${exercises[exIdx]?.name}` : currentEx?.name}
             </Text>
-
             {phase === 'work' && (
               <Text style={{ fontSize:14, color: colors.textSecondary }}>
                 Serie {serieIdx + 1} de {currentEx?.series.length}
               </Text>
             )}
-
             <View style={[runStyles.timerWrap, { borderColor: cfg.color+'55', backgroundColor: cfg.bg }]}>
               <Text style={[runStyles.timerText, { color: cfg.color }]}>{formatTime(timeLeft)}</Text>
               {phase === 'work' && currentSerie?.rest > 0 && (
@@ -509,11 +664,9 @@ function RunCircuit({ exercises, globalRest, onFinish, colors }) {
                 </Text>
               )}
             </View>
-
             <Text style={{ fontSize:12, color: colors.textSecondary }}>
               Ej. {exIdx + 1}/{exercises.length} · Tiempo: {formatTime(totalElapsed)}
             </Text>
-
             {phase === 'global_rest' && exIdx < exercises.length && (
               <View style={{ padding:12, borderRadius:12, backgroundColor: colors.card, borderWidth:1, borderColor: colors.border, width:'100%', alignItems:'center' }}>
                 <Text style={{ fontSize:10, color: colors.textSecondary }}>SIGUIENTE EJERCICIO</Text>
@@ -522,7 +675,6 @@ function RunCircuit({ exercises, globalRest, onFinish, colors }) {
                 </Text>
               </View>
             )}
-
             <TouchableOpacity
               style={{ borderRadius:12, paddingHorizontal:32, paddingVertical:13, borderWidth:1, borderColor: colors.border, backgroundColor: colors.card }}
               onPress={togglePause}>
@@ -550,9 +702,11 @@ export default function CardioTimerScreen({ navigation }) {
   const { colors } = useTheme();
   const s = makeStyles(colors);
 
-  const [exercises, setExercises]   = useState(DEFAULT_EXERCISES);
-  const [globalRest, setGlobalRest] = useState(60);
-  const [running, setRunning]       = useState(false);
+  const [exercises, setExercises]       = useState(DEFAULT_EXERCISES);
+  const [globalRest, setGlobalRest]     = useState(60);
+  const [running, setRunning]           = useState(false);
+  const [showSave, setShowSave]         = useState(false);
+  const [showMyCircuits, setShowMyCircuits] = useState(false);
 
   const totalTime = exercises.reduce((a,ex,i) =>
     a + ex.series.reduce((b,s) => b + s.duration + s.rest, 0)
@@ -566,6 +720,15 @@ export default function CardioTimerScreen({ navigation }) {
   }
   function moveUp(idx)   { setExercises(p => { const a=[...p]; [a[idx-1],a[idx]]=[a[idx],a[idx-1]]; return a; }); }
   function moveDown(idx) { setExercises(p => { const a=[...p]; [a[idx],a[idx+1]]=[a[idx+1],a[idx]]; return a; }); }
+
+  function loadCircuit(circuit) {
+    setExercises(circuit.exercises.map(ex => ({
+      ...ex,
+      id: uuidv4(),
+      series: ex.series.map(s => ({ ...s, id: uuidv4() })),
+    })));
+    setGlobalRest(circuit.globalRest || 60);
+  }
 
   if (running) {
     return <RunCircuit exercises={exercises} globalRest={globalRest} colors={colors} onFinish={() => setRunning(false)} />;
@@ -583,6 +746,18 @@ export default function CardioTimerScreen({ navigation }) {
             ~{formatTotalTime(totalTime)} · {exercises.length} ejercicio{exercises.length!==1?'s':''}
           </Text>
         </View>
+        {/* Botón mis circuitos */}
+        <TouchableOpacity
+          onPress={() => setShowMyCircuits(true)}
+          style={{ paddingHorizontal:10, paddingVertical:7, borderRadius:10, backgroundColor:'rgba(96,165,250,0.12)', borderWidth:1, borderColor:'rgba(96,165,250,0.3)' }}>
+          <Text style={{ fontSize:11, fontWeight:'800', color:'#60A5FA' }}>📋 Mis circuitos</Text>
+        </TouchableOpacity>
+        {/* Botón guardar */}
+        <TouchableOpacity
+          onPress={() => setShowSave(true)}
+          style={{ paddingHorizontal:10, paddingVertical:7, borderRadius:10, backgroundColor:'rgba(232,181,0,0.12)', borderWidth:1, borderColor:'rgba(232,181,0,0.3)' }}>
+          <Text style={{ fontSize:11, fontWeight:'800', color: colors.brand }}>💾 Guardar</Text>
+        </TouchableOpacity>
       </View>
 
       <ScrollView contentContainerStyle={{ padding:16, paddingBottom:140 }}>
@@ -627,14 +802,32 @@ export default function CardioTimerScreen({ navigation }) {
           <Text style={{ color:'#0A0A0A', fontWeight:'900', fontSize:17 }}>▶ Comenzar circuito</Text>
         </TouchableOpacity>
       </View>
+
+      {showSave && (
+        <SaveCircuitModal
+          exercises={exercises}
+          globalRest={globalRest}
+          colors={colors}
+          onClose={() => setShowSave(false)}
+          onSaved={() => Alert.alert('✅', 'Circuito guardado')}
+        />
+      )}
+
+      {showMyCircuits && (
+        <MyCircuitsModal
+          colors={colors}
+          onClose={() => setShowMyCircuits(false)}
+          onLoad={loadCircuit}
+        />
+      )}
     </View>
   );
 }
 
 const makeStyles = (colors) => StyleSheet.create({
   container:     { flex:1, backgroundColor: colors.background },
-  header:        { paddingTop: Platform.OS==='ios'?50:30, paddingBottom:14, paddingHorizontal:16, borderBottomWidth:0.5, flexDirection:'row', alignItems:'center', gap:12 },
-  title:         { fontSize:20, fontWeight:'900' },
+  header:        { paddingTop: Platform.OS==='ios'?50:30, paddingBottom:14, paddingHorizontal:16, borderBottomWidth:0.5, flexDirection:'row', alignItems:'center', gap:8 },
+  title:         { fontSize:17, fontWeight:'900' },
   globalRestCard:{ borderRadius:14, padding:14, borderWidth:1, marginBottom:16 },
   sectionLbl:    { fontSize:10, fontWeight:'800', letterSpacing:1.5 },
   addBtn:        { borderRadius:14, borderWidth:1.5, borderStyle:'dashed', padding:14, alignItems:'center', marginTop:4 },
