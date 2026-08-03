@@ -12,6 +12,154 @@ const DIAS_SHORT = {
   'Jueves':'J','Viernes':'V','Sábado':'S','Domingo':'D'
 };
 
+function makeDefaultSeries(sets, reps) {
+  return Array.from({ length: sets }, (_, i) => ({ id: i+1, reps }));
+}
+
+// ── Componente: editor de series personalizadas ───────────────────────────────
+function SeriesEditor({ ex, dayName, onUpdate, colors }) {
+  const uniform    = ex.uniform !== false;
+  const sets       = ex.targetSets || 3;
+  const defaultReps= ex.targetReps || 10;
+  const series     = ex.series || makeDefaultSeries(sets, defaultReps);
+
+  function setUniform(val) {
+    if (val) {
+      onUpdate(dayName, ex.exerciseId, {
+        uniform: true,
+        series: makeDefaultSeries(sets, defaultReps),
+      });
+    } else {
+      onUpdate(dayName, ex.exerciseId, {
+        uniform: false,
+        series: makeDefaultSeries(sets, defaultReps),
+      });
+    }
+  }
+
+  function updateSerieReps(serieId, reps) {
+    const updated = series.map(s => s.id === serieId ? { ...s, reps: parseInt(reps) || 0 } : s);
+    onUpdate(dayName, ex.exerciseId, { series: updated });
+  }
+
+  function updateSetsCount(newSets) {
+    const count = Math.max(1, Math.min(10, newSets));
+    const updated = Array.from({ length: count }, (_, i) => series[i] || { id: i+1, reps: defaultReps });
+    onUpdate(dayName, ex.exerciseId, { targetSets: count, series: updated });
+  }
+
+  return (
+    <View style={{ marginTop:8 }}>
+      {/* Toggle uniforme / personalizar */}
+      <View style={{ flexDirection:'row', alignItems:'center', marginBottom:8, gap:10 }}>
+        <Text style={{ fontSize:11, color: colors.textSecondary, flex:1 }}>Repeticiones</Text>
+        <View style={{ flexDirection:'row', borderRadius:8, overflow:'hidden', borderWidth:1, borderColor: colors.border }}>
+          {[true, false].map(val => (
+            <TouchableOpacity key={String(val)} onPress={() => setUniform(val)}
+              style={{ paddingHorizontal:12, paddingVertical:5, backgroundColor: uniform===val ? colors.brand : colors.card }}>
+              <Text style={{ fontSize:11, fontWeight:'800', color: uniform===val ? '#0A0A0A' : colors.textSecondary }}>
+                {val ? 'Iguales' : 'Custom'}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+      </View>
+
+      {uniform ? (
+        /* Modo uniforme: sets × reps */
+        <View style={{ flexDirection:'row', alignItems:'center', gap:8 }}>
+          {/* Sets */}
+          <View style={{ alignItems:'center' }}>
+            <Text style={{ fontSize:9, color: colors.brand, fontWeight:'800', letterSpacing:1, marginBottom:4 }}>SERIES</Text>
+            <View style={{ flexDirection:'row', alignItems:'center', gap:4 }}>
+              <TouchableOpacity
+                onPress={() => updateSetsCount(sets - 1)}
+                style={[st.step, { borderColor: colors.border }]}>
+                <Text style={{ color: colors.textPrimary, fontWeight:'800' }}>−</Text>
+              </TouchableOpacity>
+              <Text style={{ fontSize:16, fontWeight:'900', color: colors.brand, minWidth:24, textAlign:'center' }}>{sets}</Text>
+              <TouchableOpacity
+                onPress={() => updateSetsCount(sets + 1)}
+                style={[st.step, { borderColor: colors.border }]}>
+                <Text style={{ color: colors.textPrimary, fontWeight:'800' }}>+</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+
+          <Text style={{ fontSize:18, color: colors.textSecondary, marginTop:14 }}>×</Text>
+
+          {/* Reps */}
+          <View style={{ alignItems:'center' }}>
+            <Text style={{ fontSize:9, color:'#60A5FA', fontWeight:'800', letterSpacing:1, marginBottom:4 }}>REPS</Text>
+            <View style={{ flexDirection:'row', alignItems:'center', gap:4 }}>
+              <TouchableOpacity
+                onPress={() => onUpdate(dayName, ex.exerciseId, { targetReps: Math.max(1, defaultReps-1), series: makeDefaultSeries(sets, Math.max(1, defaultReps-1)) })}
+                style={[st.step, { borderColor: colors.border }]}>
+                <Text style={{ color: colors.textPrimary, fontWeight:'800' }}>−</Text>
+              </TouchableOpacity>
+              <TextInput
+                value={String(defaultReps)}
+                onChangeText={v => {
+                  const r = parseInt(v) || 1;
+                  onUpdate(dayName, ex.exerciseId, { targetReps: r, series: makeDefaultSeries(sets, r) });
+                }}
+                keyboardType="numeric" maxLength={3}
+                style={[st.input, { color: colors.textPrimary, borderColor: colors.border, backgroundColor: colors.background }]}
+              />
+              <TouchableOpacity
+                onPress={() => onUpdate(dayName, ex.exerciseId, { targetReps: defaultReps+1, series: makeDefaultSeries(sets, defaultReps+1) })}
+                style={[st.step, { borderColor: colors.border }]}>
+                <Text style={{ color: colors.textPrimary, fontWeight:'800' }}>+</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+
+          <Text style={{ fontSize:12, color: colors.textSecondary, marginTop:14, flex:1 }}>
+            {sets} serie{sets!==1?'s':''} de {defaultReps} rep{defaultReps!==1?'s':''}
+          </Text>
+        </View>
+      ) : (
+        /* Modo custom: una fila por serie */
+        <View>
+          <View style={{ flexDirection:'row', alignItems:'center', gap:6, marginBottom:6 }}>
+            <Text style={{ fontSize:11, color: colors.textSecondary, flex:1 }}>
+              {sets} serie{sets!==1?'s':''}
+            </Text>
+            <TouchableOpacity onPress={() => updateSetsCount(sets-1)} style={[st.step, { borderColor: colors.border }]}>
+              <Text style={{ color: colors.textPrimary, fontWeight:'800' }}>−</Text>
+            </TouchableOpacity>
+            <Text style={{ fontSize:13, fontWeight:'900', color: colors.brand, minWidth:20, textAlign:'center' }}>{sets}</Text>
+            <TouchableOpacity onPress={() => updateSetsCount(sets+1)} style={[st.step, { borderColor: colors.border }]}>
+              <Text style={{ color: colors.textPrimary, fontWeight:'800' }}>+</Text>
+            </TouchableOpacity>
+          </View>
+          <View style={{ flexDirection:'row', flexWrap:'wrap', gap:6 }}>
+            {series.map((serie, idx) => (
+              <View key={serie.id} style={{ alignItems:'center' }}>
+                <Text style={{ fontSize:9, color: colors.textSecondary, marginBottom:3 }}>S{idx+1}</Text>
+                <TextInput
+                  value={String(serie.reps)}
+                  onChangeText={v => updateSerieReps(serie.id, v)}
+                  keyboardType="numeric" maxLength={3}
+                  style={[st.input, { color:'#60A5FA', borderColor:'rgba(96,165,250,0.4)', backgroundColor: colors.background }]}
+                />
+              </View>
+            ))}
+          </View>
+          <Text style={{ fontSize:10, color: colors.textSecondary, marginTop:4 }}>
+            {series.map((s,i) => `S${i+1}: ${s.reps}`).join(' · ')}
+          </Text>
+        </View>
+      )}
+    </View>
+  );
+}
+
+const st = StyleSheet.create({
+  step:  { width:24, height:24, borderRadius:7, borderWidth:1, justifyContent:'center', alignItems:'center' },
+  input: { borderWidth:1, borderRadius:8, width:46, textAlign:'center', paddingVertical:4, fontSize:14, fontWeight:'800' },
+});
+
 export default function AddRoutineScreen({ route, navigation }) {
   const { colors } = useTheme();
   const s = makeStyles(colors);
@@ -62,20 +210,23 @@ export default function AddRoutineScreen({ route, navigation }) {
         ...d,
         exercises: [...d.exercises, {
           exerciseId:   exercise.id,
-          exerciseName: exercise.name,      // ← FIX: guardar nombre
-          muscleGroup:  exercise.muscleGroup, // ← FIX: guardar grupo
+          exerciseName: exercise.name,
+          muscleGroup:  exercise.muscleGroup,
           targetSets:   3,
           targetReps:   10,
+          uniform:      true,
+          series:       makeDefaultSeries(3, 10),
         }],
       };
     }));
   }
 
-  function updateTarget(dayName, exerciseId, field, value) {
+  // Actualización general de campos de un ejercicio
+  function updateExField(dayName, exerciseId, updates) {
     setDays(p => p.map(d => d.dayName !== dayName ? d : {
       ...d,
       exercises: d.exercises.map(e =>
-        e.exerciseId !== exerciseId ? e : { ...e, [field]: parseInt(value) || 0 }
+        e.exerciseId !== exerciseId ? e : { ...e, ...updates }
       ),
     }));
   }
@@ -104,9 +255,7 @@ export default function AddRoutineScreen({ route, navigation }) {
       navigation.goBack();
     } catch (err) {
       Alert.alert('Error', 'No se pudo guardar: ' + (err.message || 'error desconocido'));
-    } finally {
-      setIsSaving(false);
-    }
+    } finally { setIsSaving(false); }
   }
 
   const filteredEx = allExercises.filter(ex =>
@@ -133,12 +282,10 @@ export default function AddRoutineScreen({ route, navigation }) {
           <Text style={s.fieldLabel}>DURACIÓN</Text>
           <View style={s.weeksRow}>
             {[4,6,8,12,16].map(w => (
-              <TouchableOpacity
-                key={w}
+              <TouchableOpacity key={w}
                 style={[s.weekChip, weeks === w.toString() && { backgroundColor: colors.brand, borderColor: colors.brand }]}
-                onPress={() => setWeeks(w.toString())}
-              >
-                <Text style={[s.weekChipText, weeks === w.toString() && { color: colors.textOnBrand, fontWeight: '700' }]}>
+                onPress={() => setWeeks(w.toString())}>
+                <Text style={[s.weekChipText, weeks === w.toString() && { color: colors.textOnBrand, fontWeight:'700' }]}>
                   {w} sem
                 </Text>
               </TouchableOpacity>
@@ -151,7 +298,7 @@ export default function AddRoutineScreen({ route, navigation }) {
             />
           </View>
           <Text style={s.hint}>
-            La rutina durará {parseInt(weeks) || 0} semana{parseInt(weeks) !== 1 ? 's' : ''} en total.
+            La rutina durará {parseInt(weeks)||0} semana{parseInt(weeks)!==1?'s':''} en total.
           </Text>
         </View>
 
@@ -164,12 +311,10 @@ export default function AddRoutineScreen({ route, navigation }) {
               const active  = isDayActive(day);
               const exCount = days.find(d => d.dayName === day)?.exercises?.length || 0;
               return (
-                <TouchableOpacity
-                  key={day}
+                <TouchableOpacity key={day}
                   style={[s.dayCircle, active && { backgroundColor: colors.brand, borderColor: colors.brand }]}
-                  onPress={() => toggleDay(day)}
-                >
-                  <Text style={[s.dayCircleText, active && { color: colors.textOnBrand, fontWeight: '800' }]}>
+                  onPress={() => toggleDay(day)}>
+                  <Text style={[s.dayCircleText, active && { color: colors.textOnBrand, fontWeight:'800' }]}>
                     {DIAS_SHORT[day]}
                   </Text>
                   {active && exCount > 0 && (
@@ -194,10 +339,8 @@ export default function AddRoutineScreen({ route, navigation }) {
                   <View style={s.dayCardHeader}>
                     <View style={[s.dayCardDot, { backgroundColor: colors.brand }]} />
                     <Text style={s.dayCardTitle}>{dayName}</Text>
-                    <TouchableOpacity
-                      style={s.addExBtn}
-                      onPress={() => { setSelectedDayName(dayName); setSearch(''); setModalVisible(true); }}
-                    >
+                    <TouchableOpacity style={s.addExBtn}
+                      onPress={() => { setSelectedDayName(dayName); setSearch(''); setModalVisible(true); }}>
                       <Text style={s.addExBtnText}>+ Agregar</Text>
                     </TouchableOpacity>
                   </View>
@@ -206,44 +349,32 @@ export default function AddRoutineScreen({ route, navigation }) {
                     <Text style={s.dayEmpty}>Sin ejercicios. Tocá + Agregar.</Text>
                   ) : (
                     (dayData?.exercises || []).map(ex => {
-                      // Buscar datos del ejercicio para mostrar nombre y color
                       const exData = allExercises.find(e => e.id === ex.exerciseId);
-                      const name   = ex.exerciseName || exData?.name || ex.exerciseId.slice(0,8);
+                      const exName = ex.exerciseName || exData?.name || ex.exerciseId.slice(0,8);
                       const group  = ex.muscleGroup  || exData?.muscleGroup || 'Otro';
                       const mc     = colors.muscleColors?.[group] || colors.muscleColors?.['Otro'] || { bg:'#1A1A00', text:'#E8B500' };
 
                       return (
                         <View key={ex.exerciseId} style={[s.exRow, { borderTopColor: colors.border }]}>
-                          <View style={[s.exRowBadge, { backgroundColor: mc.bg }]}>
-                            <Text style={[s.exRowBadgeText, { color: mc.text }]}>
-                              {group.slice(0,2).toUpperCase()}
-                            </Text>
-                          </View>
-                          <Text style={s.exRowName} numberOfLines={1}>{name}</Text>
-                          <View style={s.exTargets}>
-                            <View style={s.targetField}>
-                              <Text style={s.targetLabel}>S</Text>
-                              <TextInput
-                                style={s.targetInput}
-                                value={ex.targetSets?.toString()}
-                                onChangeText={v => updateTarget(dayName, ex.exerciseId, 'targetSets', v)}
-                                keyboardType="numeric" maxLength={2}
-                              />
+                          <View style={{ flex:1 }}>
+                            {/* Nombre + badge + quitar */}
+                            <View style={{ flexDirection:'row', alignItems:'center', gap:8, marginBottom:6 }}>
+                              <View style={[s.exRowBadge, { backgroundColor: mc.bg }]}>
+                                <Text style={[s.exRowBadgeText, { color: mc.text }]}>{group.slice(0,2).toUpperCase()}</Text>
+                              </View>
+                              <Text style={[s.exRowName, { flex:1 }]} numberOfLines={1}>{exName}</Text>
+                              <TouchableOpacity onPress={() => removeEx(dayName, ex.exerciseId)} hitSlop={10}>
+                                <Text style={[s.exRemove, { color: colors.danger }]}>✕</Text>
+                              </TouchableOpacity>
                             </View>
-                            <Text style={s.targetX}>×</Text>
-                            <View style={s.targetField}>
-                              <Text style={s.targetLabel}>R</Text>
-                              <TextInput
-                                style={s.targetInput}
-                                value={ex.targetReps?.toString()}
-                                onChangeText={v => updateTarget(dayName, ex.exerciseId, 'targetReps', v)}
-                                keyboardType="numeric" maxLength={3}
-                              />
-                            </View>
+                            {/* Editor de series */}
+                            <SeriesEditor
+                              ex={ex}
+                              dayName={dayName}
+                              onUpdate={updateExField}
+                              colors={colors}
+                            />
                           </View>
-                          <TouchableOpacity onPress={() => removeEx(dayName, ex.exerciseId)} hitSlop={10}>
-                            <Text style={[s.exRemove, { color: colors.danger }]}>✕</Text>
-                          </TouchableOpacity>
                         </View>
                       );
                     })
@@ -258,7 +389,7 @@ export default function AddRoutineScreen({ route, navigation }) {
       </ScrollView>
 
       <View style={s.footer}>
-        <TouchableOpacity style={[s.saveBtn, isSaving && { opacity: 0.6 }]} onPress={handleSave} disabled={isSaving}>
+        <TouchableOpacity style={[s.saveBtn, isSaving && { opacity:0.6 }]} onPress={handleSave} disabled={isSaving}>
           {isSaving
             ? <ActivityIndicator color={colors.textOnBrand} />
             : <Text style={s.saveBtnText}>{isEditing ? '✓ Guardar cambios' : '✓ Crear rutina'}</Text>
@@ -274,27 +405,22 @@ export default function AddRoutineScreen({ route, navigation }) {
               <Text style={s.modalTitle}>Agregar ejercicios</Text>
               <Text style={s.modalSubtitle}>{selectedDayName}</Text>
             </View>
-            <TouchableOpacity
-              style={[s.modalDoneBtn, { backgroundColor: colors.brand }]}
-              onPress={() => setModalVisible(false)}
-            >
+            <TouchableOpacity style={[s.modalDoneBtn, { backgroundColor: colors.brand }]}
+              onPress={() => setModalVisible(false)}>
               <Text style={[s.modalDoneBtnText, { color: colors.textOnBrand }]}>Listo</Text>
             </TouchableOpacity>
           </View>
 
           <View style={[s.modalSearch, { backgroundColor: colors.card, borderColor: colors.border }]}>
             <Text>🔍</Text>
-            <TextInput
-              style={[s.modalSearchInput, { color: colors.textPrimary }]}
+            <TextInput style={[s.modalSearchInput, { color: colors.textPrimary }]}
               value={search} onChangeText={setSearch}
-              placeholder="Buscar ejercicio..."
-              placeholderTextColor={colors.textLight}
-            />
+              placeholder="Buscar ejercicio..." placeholderTextColor={colors.textLight} />
           </View>
 
           {filteredEx.length === 0 ? (
-            <View style={{ flex:1, justifyContent:'center', alignItems:'center' }}>
-              <Text style={{ color: colors.textMuted, fontSize: 14 }}>
+            <View style={{ flex:1, justifyContent:'center', alignItems:'center', padding:20 }}>
+              <Text style={{ color: colors.textMuted, fontSize:14, textAlign:'center' }}>
                 No hay ejercicios. Creá uno primero desde la pantalla de Ejercicios.
               </Text>
             </View>
@@ -307,26 +433,21 @@ export default function AddRoutineScreen({ route, navigation }) {
                 const mc    = colors.muscleColors?.[item.muscleGroup] || colors.muscleColors?.['Otro'] || { bg:'#1A1A00', text:'#E8B500' };
                 return (
                   <TouchableOpacity
-                    style={[
-                      s.exPickerItem,
-                      { backgroundColor: colors.card, borderColor: inDay ? colors.brand : 'transparent' },
-                      inDay && { backgroundColor: colors.brandLight },
-                    ]}
-                    onPress={() => toggleExInDay(item)}
-                  >
+                    style={[s.exPickerItem, { backgroundColor: colors.card, borderColor: inDay ? colors.brand : 'transparent' }, inDay && { backgroundColor: colors.brandLight }]}
+                    onPress={() => toggleExInDay(item)}>
                     <View style={[s.exPickerBadge, { backgroundColor: mc.bg }]}>
                       <Text style={[s.exPickerBadgeText, { color: mc.text }]}>{item.muscleGroup}</Text>
                     </View>
-                    <View style={{ flex: 1 }}>
+                    <View style={{ flex:1 }}>
                       <Text style={[s.exPickerName, { color: colors.textPrimary }]}>{item.name}</Text>
                     </View>
                     <View style={[s.checkbox, { borderColor: inDay ? colors.brand : colors.border }, inDay && { backgroundColor: colors.brand }]}>
-                      {inDay && <Text style={{ color: colors.textOnBrand, fontSize: 12, fontWeight: '800' }}>✓</Text>}
+                      {inDay && <Text style={{ color: colors.textOnBrand, fontSize:12, fontWeight:'800' }}>✓</Text>}
                     </View>
                   </TouchableOpacity>
                 );
               }}
-              contentContainerStyle={{ padding: 16, gap: 8 }}
+              contentContainerStyle={{ padding:16, gap:8 }}
             />
           )}
         </View>
@@ -336,54 +457,49 @@ export default function AddRoutineScreen({ route, navigation }) {
 }
 
 const makeStyles = (colors) => StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.background },
-  scroll: { flex: 1 },
-  content: { padding: 20 },
-  fieldGroup: { marginBottom: 24 },
-  fieldLabel: { fontSize: 10, fontWeight: '800', color: colors.brand, letterSpacing: 1.5, marginBottom: 10 },
-  hint: { fontSize: 12, color: colors.textSecondary, marginTop: 8 },
-  hint2: { fontSize: 12, color: colors.textSecondary, marginBottom: 10 },
-  input: { backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 13, fontSize: 15, color: colors.textPrimary },
-  weeksRow: { flexDirection: 'row', gap: 8, alignItems: 'center', flexWrap: 'wrap' },
-  weekChip: { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 20, borderWidth: 1.5, borderColor: colors.border, backgroundColor: colors.card },
-  weekChipText: { fontSize: 12, fontWeight: '600', color: colors.textSecondary },
-  weeksCustom: { width: 48, height: 38, borderRadius: 20, borderWidth: 1.5, borderColor: colors.border, backgroundColor: colors.card, textAlign: 'center', fontSize: 14, fontWeight: '700', color: colors.textPrimary },
-  daysRow: { flexDirection: 'row', gap: 8 },
-  dayCircle: { flex: 1, aspectRatio: 1, borderRadius: 12, borderWidth: 1.5, borderColor: colors.border, backgroundColor: colors.card, justifyContent: 'center', alignItems: 'center', position: 'relative' },
-  dayCircleText: { fontSize: 13, fontWeight: '700', color: colors.textSecondary },
-  dayCount: { position: 'absolute', top: -5, right: -5, width: 18, height: 18, borderRadius: 9, justifyContent: 'center', alignItems: 'center', borderWidth: 1.5, borderColor: colors.background },
-  dayCountText: { fontSize: 9, fontWeight: '800' },
-  dayCard: { backgroundColor: colors.card, borderRadius: 16, padding: 14, marginBottom: 10, borderWidth: 0.5, borderColor: colors.border },
-  dayCardHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 10 },
-  dayCardDot: { width: 8, height: 8, borderRadius: 4 },
-  dayCardTitle: { flex: 1, fontSize: 15, fontWeight: '800', color: colors.textPrimary },
-  addExBtn: { paddingHorizontal: 12, paddingVertical: 5, borderRadius: 8, backgroundColor: colors.brandLight },
-  addExBtnText: { fontSize: 13, color: colors.brand, fontWeight: '700' },
-  dayEmpty: { fontSize: 13, color: colors.textLight, textAlign: 'center', paddingVertical: 10 },
-  exRow: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 10, borderTopWidth: 0.5 },
-  exRowBadge: { paddingHorizontal: 6, paddingVertical: 3, borderRadius: 6 },
-  exRowBadgeText: { fontSize: 9, fontWeight: '800' },
-  exRowName: { flex: 1, fontSize: 13, fontWeight: '600', color: colors.textPrimary },
-  exTargets: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  targetField: { alignItems: 'center' },
-  targetLabel: { fontSize: 9, color: colors.textLight, marginBottom: 2, fontWeight: '600' },
-  targetInput: { width: 38, height: 34, borderRadius: 8, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.background, textAlign: 'center', fontSize: 14, fontWeight: '700', color: colors.textPrimary },
-  targetX: { fontSize: 14, color: colors.textSecondary, marginTop: 10 },
-  exRemove: { fontSize: 16, paddingHorizontal: 4 },
-  footer: { padding: 20, paddingBottom: Platform.OS === 'ios' ? 36 : 20, backgroundColor: colors.background, borderTopWidth: 0.5, borderTopColor: colors.border },
-  saveBtn: { backgroundColor: colors.brand, borderRadius: 14, padding: 17, alignItems: 'center', shadowColor: colors.brand, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 8, elevation: 6 },
-  saveBtnText: { color: colors.textOnBrand, fontWeight: '800', fontSize: 16, letterSpacing: 0.2 },
-  modalContainer: { flex: 1 },
-  modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 20, borderBottomWidth: 0.5 },
-  modalTitle: { fontSize: 18, fontWeight: '800', color: colors.textPrimary },
-  modalSubtitle: { fontSize: 13, color: colors.textSecondary, marginTop: 2 },
-  modalDoneBtn: { paddingHorizontal: 18, paddingVertical: 9, borderRadius: 12 },
-  modalDoneBtnText: { fontWeight: '800', fontSize: 14 },
-  modalSearch: { flexDirection: 'row', alignItems: 'center', margin: 16, borderWidth: 1, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10, gap: 8 },
-  modalSearchInput: { flex: 1, fontSize: 14 },
-  exPickerItem: { flexDirection: 'row', alignItems: 'center', borderRadius: 14, padding: 14, borderWidth: 1.5, gap: 12 },
-  exPickerBadge: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8 },
-  exPickerBadgeText: { fontSize: 10, fontWeight: '700' },
-  exPickerName: { fontSize: 14, fontWeight: '700' },
-  checkbox: { width: 26, height: 26, borderRadius: 13, borderWidth: 2, justifyContent: 'center', alignItems: 'center' },
+  container:   { flex:1, backgroundColor: colors.background },
+  scroll:      { flex:1 },
+  content:     { padding:20 },
+  fieldGroup:  { marginBottom:24 },
+  fieldLabel:  { fontSize:10, fontWeight:'800', color: colors.brand, letterSpacing:1.5, marginBottom:10 },
+  hint:        { fontSize:12, color: colors.textSecondary, marginTop:8 },
+  hint2:       { fontSize:12, color: colors.textSecondary, marginBottom:10 },
+  input:       { backgroundColor: colors.card, borderWidth:1, borderColor: colors.border, borderRadius:12, paddingHorizontal:14, paddingVertical:13, fontSize:15, color: colors.textPrimary },
+  weeksRow:    { flexDirection:'row', gap:8, alignItems:'center', flexWrap:'wrap' },
+  weekChip:    { paddingHorizontal:12, paddingVertical:8, borderRadius:20, borderWidth:1.5, borderColor: colors.border, backgroundColor: colors.card },
+  weekChipText:{ fontSize:12, fontWeight:'600', color: colors.textSecondary },
+  weeksCustom: { width:48, height:38, borderRadius:20, borderWidth:1.5, borderColor: colors.border, backgroundColor: colors.card, textAlign:'center', fontSize:14, fontWeight:'700', color: colors.textPrimary },
+  daysRow:     { flexDirection:'row', gap:8 },
+  dayCircle:   { flex:1, aspectRatio:1, borderRadius:12, borderWidth:1.5, borderColor: colors.border, backgroundColor: colors.card, justifyContent:'center', alignItems:'center', position:'relative' },
+  dayCircleText:{ fontSize:13, fontWeight:'700', color: colors.textSecondary },
+  dayCount:    { position:'absolute', top:-5, right:-5, width:18, height:18, borderRadius:9, justifyContent:'center', alignItems:'center', borderWidth:1.5, borderColor: colors.background },
+  dayCountText:{ fontSize:9, fontWeight:'800' },
+  dayCard:     { backgroundColor: colors.card, borderRadius:16, padding:14, marginBottom:10, borderWidth:0.5, borderColor: colors.border },
+  dayCardHeader:{ flexDirection:'row', alignItems:'center', gap:8, marginBottom:10 },
+  dayCardDot:  { width:8, height:8, borderRadius:4 },
+  dayCardTitle:{ flex:1, fontSize:15, fontWeight:'800', color: colors.textPrimary },
+  addExBtn:    { paddingHorizontal:12, paddingVertical:5, borderRadius:8, backgroundColor: colors.brandLight },
+  addExBtnText:{ fontSize:13, color: colors.brand, fontWeight:'700' },
+  dayEmpty:    { fontSize:13, color: colors.textLight, textAlign:'center', paddingVertical:10 },
+  exRow:       { paddingVertical:12, borderTopWidth:0.5 },
+  exRowBadge:  { paddingHorizontal:6, paddingVertical:3, borderRadius:6 },
+  exRowBadgeText:{ fontSize:9, fontWeight:'800' },
+  exRowName:   { fontSize:13, fontWeight:'600', color: colors.textPrimary },
+  exRemove:    { fontSize:16, paddingHorizontal:4 },
+  footer:      { padding:20, paddingBottom: Platform.OS==='ios'?36:20, backgroundColor: colors.background, borderTopWidth:0.5, borderTopColor: colors.border },
+  saveBtn:     { backgroundColor: colors.brand, borderRadius:14, padding:17, alignItems:'center', shadowColor: colors.brand, shadowOffset:{width:0,height:4}, shadowOpacity:0.3, shadowRadius:8, elevation:6 },
+  saveBtnText: { color: colors.textOnBrand, fontWeight:'800', fontSize:16, letterSpacing:0.2 },
+  modalContainer:{ flex:1 },
+  modalHeader: { flexDirection:'row', justifyContent:'space-between', alignItems:'center', padding:20, borderBottomWidth:0.5 },
+  modalTitle:  { fontSize:18, fontWeight:'800', color: colors.textPrimary },
+  modalSubtitle:{ fontSize:13, color: colors.textSecondary, marginTop:2 },
+  modalDoneBtn:{ paddingHorizontal:18, paddingVertical:9, borderRadius:12 },
+  modalDoneBtnText:{ fontWeight:'800', fontSize:14 },
+  modalSearch: { flexDirection:'row', alignItems:'center', margin:16, borderWidth:1, borderRadius:12, paddingHorizontal:12, paddingVertical:10, gap:8 },
+  modalSearchInput:{ flex:1, fontSize:14 },
+  exPickerItem:{ flexDirection:'row', alignItems:'center', borderRadius:14, padding:14, borderWidth:1.5, gap:12 },
+  exPickerBadge:{ paddingHorizontal:8, paddingVertical:4, borderRadius:8 },
+  exPickerBadgeText:{ fontSize:10, fontWeight:'700' },
+  exPickerName:{ fontSize:14, fontWeight:'700' },
+  checkbox:    { width:26, height:26, borderRadius:13, borderWidth:2, justifyContent:'center', alignItems:'center' },
 });
