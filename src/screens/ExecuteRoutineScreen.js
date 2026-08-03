@@ -27,7 +27,6 @@ svg{display:block;}</style>
 </head><body>${svg}</body></html>`;
 }
 
-// ── Media del ejercicio: animación / video / YouTube ──────────────────────────
 function ExerciseMedia({ exercise, colors }) {
   const [activeTab, setActiveTab] = useState('animation');
   const svgContent = getExerciseAnimation(exercise || {});
@@ -100,16 +99,15 @@ export default function ExecuteRoutineScreen({ route, navigation }) {
   const s = makeStyles(colors);
   const { routineId, routineName, week, dayName, dayExercises, existingSession } = route.params;
 
-  const [exercisesMap, setExercisesMap]   = useState({});
+  const [exercisesMap, setExercisesMap]     = useState({});
   const [exerciseStates, setExerciseStates] = useState([]);
-  const [isSaving, setIsSaving]           = useState(false);
-  const [isLoading, setIsLoading]         = useState(true);
+  const [isSaving, setIsSaving]             = useState(false);
+  const [isLoading, setIsLoading]           = useState(true);
   const [restTimerVisible, setRestTimerVisible] = useState(false);
   const [restTimerInfo, setRestTimerInfo]       = useState('');
-  const [serieTimers, setSerieTimers]     = useState({});
+  const [serieTimers, setSerieTimers]       = useState({});
   const timerIntervalsRef = useRef({});
 
-  // Estado para el modal de comentario
   const [showCelebration, setShowCelebration] = useState(false);
   const [celebrationData, setCelebrationData] = useState({ titulo: '', subtitulo: '' });
   const [commentModal, setCommentModal] = useState({
@@ -129,23 +127,56 @@ export default function ExecuteRoutineScreen({ route, navigation }) {
     const map = {};
     exList.forEach(ex => { map[ex.id] = ex; });
     setExercisesMap(map);
+
     const states = dayExercises.map(de => {
-      const exData = map[de.exerciseId];
+      const exData  = map[de.exerciseId];
       const isCardio = exData?.trackingType === TRACKING_TYPES.TIME;
+
+      // ── Calcular series iniciales según config de la rutina ──────────────
+      function getInitialSeries() {
+        if (isCardio) {
+          return Array.from({ length: de.targetSets || 3 }, () => ({
+            duration:'', distance:'', completed:false, comment:''
+          }));
+        }
+        // Si tiene series personalizadas guardadas en la rutina, usarlas
+        if (de.series && de.series.length > 0) {
+          return de.series.map(s => ({
+            weight:    '',
+            reps:      s.reps?.toString() || de.targetReps?.toString() || '',
+            completed: false,
+            comment:   '',
+          }));
+        }
+        // Fallback: series uniformes
+        return Array.from({ length: de.targetSets || 3 }, () => ({
+          weight:'', reps: de.targetReps?.toString() || '', completed:false, comment:''
+        }));
+      }
+
+      // Si hay sesión previa, restaurarla
       if (existingSession?.exercises) {
         const sessionEx = existingSession.exercises.find(e => e.exerciseId === de.exerciseId);
         if (sessionEx) return {
-          exerciseId: de.exerciseId, status: sessionEx.status,
+          exerciseId: de.exerciseId,
+          status:     sessionEx.status,
           series: isCardio
-            ? (sessionEx.cardioSeries?.length > 0 ? sessionEx.cardioSeries.map(cs => ({ duration: cs.duration?.toString()||'', distance: cs.distance?.toString()||'', completed: cs.completed||false, comment: cs.comment||'' })) : Array.from({length:de.targetSets},()=>({duration:'',distance:'',completed:false,comment:''})))
-            : (sessionEx.series?.length > 0 ? sessionEx.series.map(s=>({weight:s.weight?.toString()||'',reps:s.reps?.toString()||'',completed:false,comment:s.comment||''})) : Array.from({length:de.targetSets},()=>({weight:'',reps:de.targetReps?.toString()||'',completed:false,comment:''}))),
+            ? (sessionEx.cardioSeries?.length > 0
+                ? sessionEx.cardioSeries.map(cs => ({ duration:cs.duration?.toString()||'', distance:cs.distance?.toString()||'', completed:cs.completed||false, comment:cs.comment||'' }))
+                : getInitialSeries())
+            : (sessionEx.series?.length > 0
+                ? sessionEx.series.map(s => ({ weight:s.weight?.toString()||'', reps:s.reps?.toString()||'', completed:false, comment:s.comment||'' }))
+                : getInitialSeries()),
         };
       }
-      return { exerciseId: de.exerciseId, status: 'pending',
-        series: isCardio
-          ? Array.from({length:de.targetSets},()=>({duration:'',distance:'',completed:false,comment:''}))
-          : Array.from({length:de.targetSets},()=>({weight:'',reps:de.targetReps?.toString()||'',completed:false,comment:''})) };
+
+      return {
+        exerciseId: de.exerciseId,
+        status:     'pending',
+        series:     getInitialSeries(),
+      };
     });
+
     setExerciseStates(states);
     setIsLoading(false);
   }
@@ -153,7 +184,8 @@ export default function ExecuteRoutineScreen({ route, navigation }) {
   function updateSerie(exerciseId, index, field, value) {
     setExerciseStates(prev => prev.map(ex => {
       if (ex.exerciseId !== exerciseId) return ex;
-      const newSeries = [...ex.series]; newSeries[index] = { ...newSeries[index], [field]: value };
+      const newSeries = [...ex.series];
+      newSeries[index] = { ...newSeries[index], [field]: value };
       return { ...ex, series: newSeries };
     }));
   }
@@ -161,11 +193,7 @@ export default function ExecuteRoutineScreen({ route, navigation }) {
   function setStatus(exerciseId, status) {
     setExerciseStates(prev => prev.map(ex => ex.exerciseId !== exerciseId ? ex : { ...ex, status }));
     if (status === 'completed') {
-      const exData = exercisesMap[exerciseId];
-      if (exData) {
-        // Pequeña vibración de feedback
-        try { Vibration.vibrate(100); } catch {}
-      }
+      try { Vibration.vibrate(100); } catch {}
     }
   }
 
@@ -197,7 +225,6 @@ export default function ExecuteRoutineScreen({ route, navigation }) {
     buzz(true);
   }
 
-  // Al completar serie → mostrar modal de comentario
   function handleSerieCompleted(exerciseId, serieIndex, totalSeries, exerciseName) {
     buzz(false);
     const exState = exerciseStates.find(ex => ex.exerciseId === exerciseId);
@@ -214,13 +241,11 @@ export default function ExecuteRoutineScreen({ route, navigation }) {
     });
   }
 
-  // Al guardar comentario (o saltear)
   function handleCommentSave(comment) {
     const { exerciseId, serieIndex, totalSeries, exerciseName } = commentModal;
     updateSerie(exerciseId, serieIndex, 'completed', true);
     updateSerie(exerciseId, serieIndex, 'comment', comment);
     setCommentModal(p => ({ ...p, visible: false }));
-    // Mostrar timer de descanso
     setRestTimerInfo(serieIndex < totalSeries-1 ? `Serie ${serieIndex+2} — ${exerciseName}` : `Fin — ${exerciseName}`);
     setRestTimerVisible(true);
   }
@@ -235,7 +260,12 @@ export default function ExecuteRoutineScreen({ route, navigation }) {
 
   async function handleFinish() {
     const allDone = exerciseStates.every(ex => ex.status==='completed'||ex.status==='skipped');
-    if (!allDone) { Alert.alert('¿Terminaste?','Hay ejercicios pendientes.',[{text:'Seguir',style:'cancel'},{text:'Finalizar',onPress:doSave}]); } else doSave();
+    if (!allDone) {
+      Alert.alert('¿Terminaste?','Hay ejercicios pendientes.',[
+        { text:'Seguir', style:'cancel' },
+        { text:'Finalizar', onPress:doSave },
+      ]);
+    } else doSave();
   }
 
   async function doSave() {
@@ -245,34 +275,38 @@ export default function ExecuteRoutineScreen({ route, navigation }) {
         const isCardio = exercisesMap[ex.exerciseId]?.trackingType === TRACKING_TYPES.TIME;
         if (ex.status==='skipped') return { exerciseId:ex.exerciseId, status:'skipped', series:[], cardioSeries:[], duration:null, distance:null };
         if (isCardio) {
-          const cs = ex.series.map(sr=>({duration:parseFloat(sr.duration)||null,distance:parseFloat(sr.distance)||null,completed:sr.completed||false,comment:sr.comment||''}));
+          const cs = ex.series.map(sr => ({ duration:parseFloat(sr.duration)||null, distance:parseFloat(sr.distance)||null, completed:sr.completed||false, comment:sr.comment||'' }));
           return { exerciseId:ex.exerciseId, status:'completed', series:[], cardioSeries:cs, duration:cs.reduce((a,c)=>a+(c.duration||0),0)||null, distance:cs.reduce((a,c)=>a+(c.distance||0),0)||null };
         }
-        return { exerciseId:ex.exerciseId, status:'completed', series:ex.series.map(sr=>({weight:parseFloat(sr.weight)||0,reps:parseInt(sr.reps)||0,comment:sr.comment||''})), cardioSeries:[], duration:null, distance:null };
+        return { exerciseId:ex.exerciseId, status:'completed', series:ex.series.map(sr=>({ weight:parseFloat(sr.weight)||0, reps:parseInt(sr.reps)||0, comment:sr.comment||'' })), cardioSeries:[], duration:null, distance:null };
       });
-      const dayStatus = exerciseStates.every(ex=>ex.status==='skipped')?'skipped':'completed';
-      const session = await saveSession({routineId,week,dayName,status:dayStatus,exercises:sessionExercises});
+      const dayStatus = exerciseStates.every(ex=>ex.status==='skipped') ? 'skipped' : 'completed';
+      const session = await saveSession({ routineId, week, dayName, status:dayStatus, exercises:sessionExercises });
       for (const ex of sessionExercises) {
         if (ex.status==='skipped') continue;
         const exData = exercisesMap[ex.exerciseId];
         if (!exData) continue;
-        if (exData.trackingType===TRACKING_TYPES.TIME) { for (const cs of (ex.cardioSeries||[])) { if (cs.duration) await addTimeSession(ex.exerciseId,{duration:cs.duration,distance:cs.distance},session.id); } }
-        else { const valid=ex.series.filter(sr=>sr.weight>0||sr.reps>0); if (valid.length>0) await addWeightSession(ex.exerciseId,valid,session.id); }
+        if (exData.trackingType===TRACKING_TYPES.TIME) {
+          for (const cs of (ex.cardioSeries||[])) { if (cs.duration) await addTimeSession(ex.exerciseId,{duration:cs.duration,distance:cs.distance},session.id); }
+        } else {
+          const valid = ex.series.filter(sr=>sr.weight>0||sr.reps>0);
+          if (valid.length>0) await addWeightSession(ex.exerciseId,valid,session.id);
+        }
       }
-      // Mostrar celebración
-      const completedCount = exerciseStates.filter(ex => ex.status === 'completed').length;
+      const completedCount = exerciseStates.filter(ex => ex.status==='completed').length;
       setCelebrationData({
-        titulo: `${dayName} — Semana ${week}`,
+        titulo:    `${dayName} — Semana ${week}`,
         subtitulo: `${completedCount} de ${exerciseStates.length} ejercicios completados`,
       });
       setShowCelebration(true);
-    } catch { Alert.alert('Error','No se pudo guardar.'); } finally { setIsSaving(false); }
+    } catch { Alert.alert('Error','No se pudo guardar.'); }
+    finally { setIsSaving(false); }
   }
 
   if (isLoading) return <View style={s.centered}><ActivityIndicator color={colors.brand} size="large" /></View>;
 
-  const completedCount = exerciseStates.filter(ex => ex.status === 'completed').length;
-  const totalCount = exerciseStates.length;
+  const completedCount = exerciseStates.filter(ex => ex.status==='completed').length;
+  const totalCount     = exerciseStates.length;
 
   return (
     <View style={s.container}>
@@ -289,32 +323,44 @@ export default function ExecuteRoutineScreen({ route, navigation }) {
         </View>
 
         <View style={[s.sessionProgressBar, { backgroundColor: colors.border }]}>
-          <View style={[s.sessionProgressFill, { width: totalCount > 0 ? `${(completedCount/totalCount)*100}%` : '0%', backgroundColor: colors.brand }]} />
+          <View style={[s.sessionProgressFill, {
+            width: totalCount > 0 ? `${(completedCount/totalCount)*100}%` : '0%',
+            backgroundColor: colors.brand,
+          }]} />
         </View>
 
         {dayExercises.map((de, exIndex) => {
           const exData  = exercisesMap[de.exerciseId];
           const exState = exerciseStates[exIndex];
           if (!exData || !exState) return null;
+
           const isCardio    = exData.trackingType === TRACKING_TYPES.TIME;
           const stats       = calculateStats(exData.sets, exData.trackingType);
           const isSkipped   = exState.status === 'skipped';
           const isCompleted = exState.status === 'completed';
-          const lastSession = exData.sets.length > 0 ? [...exData.sets].sort((a,b)=>new Date(b.date)-new Date(a.date))[0] : null;
+          const lastSession = exData.sets.length > 0
+            ? [...exData.sets].sort((a,b) => new Date(b.date)-new Date(a.date))[0]
+            : null;
+
+          // Texto del objetivo — muestra reps custom si las hay
+          const hasCustomSeries = de.series && de.series.length > 0 && !de.uniform;
+          const targetText = isCardio
+            ? `⏱ Cardio · ${de.targetSets} serie${de.targetSets!==1?'s':''}`
+            : hasCustomSeries
+              ? `${de.targetSets} series × ${de.series.map(s=>s.reps).join('/')} reps`
+              : `${de.targetSets} series × ${de.targetReps} reps`;
 
           return (
             <View key={de.exerciseId} style={[
               s.exCard,
               isCompleted && { borderColor: colors.success + '60' },
-              isSkipped && { opacity: 0.5, borderColor: colors.danger },
+              isSkipped   && { opacity: 0.5, borderColor: colors.danger },
             ]}>
               <View style={s.exHeader}>
                 <View style={[s.exStatusDot, { backgroundColor: isCompleted ? colors.success : isSkipped ? colors.danger : colors.border }]} />
                 <View style={{ flex: 1 }}>
                   <Text style={s.exName}>{exData.name}</Text>
-                  <Text style={s.exTarget}>
-                    {isCardio ? `⏱ Cardio · ${de.targetSets} serie${de.targetSets!==1?'s':''}` : `${de.targetSets} series × ${de.targetReps} reps`}
-                  </Text>
+                  <Text style={s.exTarget}>{targetText}</Text>
                 </View>
                 <TouchableOpacity
                   style={[s.skipBtn, isSkipped && { backgroundColor: colors.dangerLight, borderColor: colors.danger }]}
@@ -326,27 +372,32 @@ export default function ExecuteRoutineScreen({ route, navigation }) {
                 </TouchableOpacity>
               </View>
 
-              {/* Animación / Video */}
-              {!isSkipped && (
-                <ExerciseMedia exercise={exData || {}} colors={colors} />
-              )}
+              {!isSkipped && <ExerciseMedia exercise={exData || {}} colors={colors} />}
 
               {!isSkipped && lastSession && (
                 <View style={s.ref}>
                   <Text style={s.refTitle}>ÚLTIMO REGISTRO</Text>
                   {isCardio ? (
                     <View style={s.refRow}>
-                      <View style={[s.refChip, { backgroundColor: colors.brandLight }]}><Text style={[s.refChipVal, { color: colors.brand }]}>{stats.maxDuration ? formatDuration(stats.maxDuration) : '—'}</Text><Text style={s.refChipLbl}>Máx dur.</Text></View>
+                      <View style={[s.refChip, { backgroundColor: colors.brandLight }]}>
+                        <Text style={[s.refChipVal, { color: colors.brand }]}>{stats.maxDuration ? formatDuration(stats.maxDuration) : '—'}</Text>
+                        <Text style={s.refChipLbl}>Máx dur.</Text>
+                      </View>
                     </View>
                   ) : (
                     <View style={s.refRow}>
-                      <View style={[s.refChip, { backgroundColor: colors.brandLight }]}><Text style={[s.refChipVal, { color: colors.brand }]}>{stats.maxWeight ? `${stats.maxWeight}kg` : '—'}</Text><Text style={s.refChipLbl}>Peso máx.</Text></View>
+                      <View style={[s.refChip, { backgroundColor: colors.brandLight }]}>
+                        <Text style={[s.refChipVal, { color: colors.brand }]}>{stats.maxWeight ? `${stats.maxWeight}kg` : '—'}</Text>
+                        <Text style={s.refChipLbl}>Peso máx.</Text>
+                      </View>
                       <View style={[s.refChip, { backgroundColor: colors.cardAlt }]}>
                         {(() => {
                           const series = (lastSession.series||[]).filter(sr=>sr.weight>0||sr.reps>0);
                           if (series.length===0) return <Text style={s.refChipVal}>—</Text>;
                           const allSame = series.every(sr=>sr.weight===series[0].weight&&sr.reps===series[0].reps);
-                          return <Text style={[s.refChipVal,{color:colors.textPrimary,fontSize:11}]}>{allSame ? `${series.length}×${series[0].weight}kg×${series[0].reps}` : series.map(sr=>`${sr.weight}kg×${sr.reps}`).join(' ')}</Text>;
+                          return <Text style={[s.refChipVal,{color:colors.textPrimary,fontSize:11}]}>
+                            {allSame ? `${series.length}×${series[0].weight}kg×${series[0].reps}` : series.map(sr=>`${sr.weight}kg×${sr.reps}`).join(' ')}
+                          </Text>;
                         })()}
                         <Text style={s.refChipLbl}>Última vez</Text>
                       </View>
@@ -378,6 +429,8 @@ export default function ExecuteRoutineScreen({ route, navigation }) {
                     const done  = serie.completed || false;
                     const key   = `${de.exerciseId}_${sIndex}`;
                     const timer = serieTimers[key] || { running: false, elapsed: 0 };
+                    // Reps objetivo de esta serie específica
+                    const targetReps = de.series?.[sIndex]?.reps?.toString() || de.targetReps?.toString() || '';
 
                     return (
                       <View key={sIndex}>
@@ -407,7 +460,8 @@ export default function ExecuteRoutineScreen({ route, navigation }) {
                           ) : (
                             <>
                               <TextInput style={[s.serieInput, done && { borderColor: colors.success }]} value={serie.weight} onChangeText={v=>updateSerie(de.exerciseId,sIndex,'weight',v)} keyboardType="numeric" placeholder="—" placeholderTextColor={colors.textLight} textAlign="center" editable={!done} />
-                              <TextInput style={[s.serieInput, done && { borderColor: colors.success }]} value={serie.reps} onChangeText={v=>updateSerie(de.exerciseId,sIndex,'reps',v)} keyboardType="numeric" placeholder="—" placeholderTextColor={colors.textLight} textAlign="center" editable={!done} />
+                              {/* Campo reps con placeholder mostrando el objetivo de esa serie */}
+                              <TextInput style={[s.serieInput, done && { borderColor: colors.success }]} value={serie.reps} onChangeText={v=>updateSerie(de.exerciseId,sIndex,'reps',v)} keyboardType="numeric" placeholder={targetReps || '—'} placeholderTextColor={colors.brand + '80'} textAlign="center" editable={!done} />
                             </>
                           )}
 
@@ -419,7 +473,6 @@ export default function ExecuteRoutineScreen({ route, navigation }) {
                           </TouchableOpacity>
                         </View>
 
-                        {/* Mostrar comentario si tiene */}
                         {done && serie.comment ? (
                           <View style={[s.commentChip, { backgroundColor: 'rgba(232,181,0,0.08)', borderColor: 'rgba(232,181,0,0.2)' }]}>
                             <Text style={{ fontSize: 11, color: colors.brand }}>💬 {serie.comment}</Text>
@@ -449,7 +502,6 @@ export default function ExecuteRoutineScreen({ route, navigation }) {
 
       <RestTimer visible={restTimerVisible} duration={60} nextInfo={restTimerInfo} onFinish={() => setRestTimerVisible(false)} onSkip={() => setRestTimerVisible(false)} />
 
-      {/* Modal de comentario por serie */}
       <SerieComment
         visible={commentModal.visible}
         serieNumber={commentModal.serieNumber}
@@ -459,7 +511,6 @@ export default function ExecuteRoutineScreen({ route, navigation }) {
         onSkip={handleCommentSkip}
       />
 
-      {/* Celebración al terminar */}
       <CelebrationScreen
         visible={showCelebration}
         titulo={celebrationData.titulo}
@@ -480,16 +531,14 @@ const makeStyles = (colors) => StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.background },
   centered:  { flex: 1, justifyContent: 'center', alignItems: 'center' },
   content:   { padding: 16 },
-
-  sessionHeader:       { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 10 },
-  sessionTitle:        { fontSize: 20, fontWeight: '800', color: colors.textPrimary, letterSpacing: -0.3 },
-  sessionSub:          { fontSize: 13, color: colors.textSecondary, marginTop: 2 },
-  sessionProgress:     { alignItems: 'center', backgroundColor: colors.brandLight, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 10 },
-  sessionProgressText: { fontSize: 18, fontWeight: '800' },
-  sessionProgressLabel:{ fontSize: 10, color: colors.textSecondary },
-  sessionProgressBar:  { height: 4, borderRadius: 2, overflow: 'hidden', marginBottom: 16 },
-  sessionProgressFill: { height: '100%', borderRadius: 2 },
-
+  sessionHeader:        { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 10 },
+  sessionTitle:         { fontSize: 20, fontWeight: '800', color: colors.textPrimary, letterSpacing: -0.3 },
+  sessionSub:           { fontSize: 13, color: colors.textSecondary, marginTop: 2 },
+  sessionProgress:      { alignItems: 'center', backgroundColor: colors.brandLight, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 10 },
+  sessionProgressText:  { fontSize: 18, fontWeight: '800' },
+  sessionProgressLabel: { fontSize: 10, color: colors.textSecondary },
+  sessionProgressBar:   { height: 4, borderRadius: 2, overflow: 'hidden', marginBottom: 16 },
+  sessionProgressFill:  { height: '100%', borderRadius: 2 },
   exCard:      { backgroundColor: colors.card, borderRadius: 16, padding: 16, marginBottom: 14, borderWidth: 1, borderColor: colors.border },
   exHeader:    { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 12 },
   exStatusDot: { width: 10, height: 10, borderRadius: 5 },
@@ -497,14 +546,12 @@ const makeStyles = (colors) => StyleSheet.create({
   exTarget:    { fontSize: 12, color: colors.textSecondary, marginTop: 2 },
   skipBtn:     { paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.cardAlt },
   skipBtnText: { fontSize: 11, color: colors.textSecondary, fontWeight: '600' },
-
   ref:        { backgroundColor: colors.cardAlt, borderRadius: 10, padding: 10, marginBottom: 12, borderLeftWidth: 2, borderLeftColor: colors.brand },
   refTitle:   { fontSize: 9, fontWeight: '800', color: colors.brand, letterSpacing: 1.2, marginBottom: 8 },
   refRow:     { flexDirection: 'row', gap: 8 },
   refChip:    { flex: 1, borderRadius: 8, padding: 8, alignItems: 'center' },
   refChipVal: { fontSize: 14, fontWeight: '800', marginBottom: 2 },
   refChipLbl: { fontSize: 9, color: colors.textSecondary },
-
   seriesContainer: { gap: 6 },
   colHeader:       { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 2, marginBottom: 4 },
   colHeaderText:   { fontSize: 9, fontWeight: '700', color: colors.textLight, textAlign: 'center', textTransform: 'uppercase', letterSpacing: 0.5 },
@@ -513,19 +560,15 @@ const makeStyles = (colors) => StyleSheet.create({
   serieNumText:    { fontSize: 13, fontWeight: '800' },
   serieInput:      { flex: 1, height: 44, borderRadius: 10, borderWidth: 1.5, borderColor: colors.border, backgroundColor: colors.cardAlt, fontSize: 17, fontWeight: '700', color: colors.textPrimary },
   checkBtn:        { height: 44, borderRadius: 10, borderWidth: 1.5, justifyContent: 'center', alignItems: 'center' },
-
-  commentChip: { marginTop: 4, marginLeft: 35, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8, borderWidth: 1 },
-
+  commentChip:     { marginTop: 4, marginLeft: 35, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8, borderWidth: 1 },
   miniTimer:       { alignItems: 'center', gap: 3 },
   miniTimerText:   { fontSize: 14, fontWeight: '800', letterSpacing: -0.5 },
   miniTimerBtns:   { flexDirection: 'row', gap: 3 },
   miniTimerBtn:    { width: 24, height: 24, borderRadius: 7, justifyContent: 'center', alignItems: 'center' },
   miniTimerBtnIcon:{ fontSize: 11, color: '#fff', fontWeight: '800' },
-
   completeBtn:     { marginTop: 14, padding: 13, borderRadius: 12, borderWidth: 1.5, borderColor: colors.border, alignItems: 'center' },
   completeBtnText: { fontSize: 14, fontWeight: '700', color: colors.textSecondary },
-
-  footer:         { position: 'absolute', bottom: 0, left: 0, right: 0, padding: 16, backgroundColor: colors.background, borderTopWidth: 0.5, borderTopColor: colors.border },
-  finishBtn:      { backgroundColor: colors.brand, borderRadius: 14, padding: 17, alignItems: 'center', shadowColor: colors.brand, shadowOffset:{width:0,height:4}, shadowOpacity:0.3, shadowRadius:8, elevation:6 },
-  finishBtnText:  { color: colors.textOnBrand, fontWeight: '800', fontSize: 16, letterSpacing: 0.2 },
+  footer:      { position: 'absolute', bottom: 0, left: 0, right: 0, padding: 16, backgroundColor: colors.background, borderTopWidth: 0.5, borderTopColor: colors.border },
+  finishBtn:   { backgroundColor: colors.brand, borderRadius: 14, padding: 17, alignItems: 'center', shadowColor: colors.brand, shadowOffset:{width:0,height:4}, shadowOpacity:0.3, shadowRadius:8, elevation:6 },
+  finishBtnText:{ color: colors.textOnBrand, fontWeight: '800', fontSize: 16, letterSpacing: 0.2 },
 });
