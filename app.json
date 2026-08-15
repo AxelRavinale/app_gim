@@ -23,6 +23,14 @@
     },
     "ios": {
       "supportsTablet": true,
+      "infoPlist": {
+        "NSLocationAlwaysAndWhenInUseUsageDescription": "GymTracker necesita acceso a tu ubicación para registrar tus rutas de cardio, incluso cuando la pantalla está apagada.",
+        "NSLocationAlwaysUsageDescription": "GymTracker necesita acceso a tu ubicación para registrar tus rutas de cardio en background.",
+        "UIBackgroundModes": [
+          "location",
+          "fetch"
+        ]
+      },
       "config": {
         "googleMapsApiKey": "AIzaSyB8PIahGMoB-35KhEWONg6W-QCP8h3UXOc"
       }
@@ -40,7 +48,11 @@
       },
       "permissions": [
         "android.permission.ACCESS_COARSE_LOCATION",
-        "android.permission.ACCESS_FINE_LOCATION"
+        "android.permission.ACCESS_FINE_LOCATION",
+        "android.permission.ACCESS_BACKGROUND_LOCATION",
+        "android.permission.FOREGROUND_SERVICE",
+        "android.permission.FOREGROUND_SERVICE_LOCATION",
+        "android.permission.WAKE_LOCK"
       ],
       "package": "com.axelravinalesorganization.gymtrackerdm59lq"
     },
@@ -51,8 +63,10 @@
       [
         "expo-location",
         {
-          "locationAlwaysAndWhenInUsePermission": "GymTracker necesita acceso a tu ubicación para registrar tus rutas de cardio.",
-          "locationWhenInUsePermission": "GymTracker necesita acceso a tu ubicación para registrar tus rutas de cardio."
+          "locationAlwaysAndWhenInUsePermission": "GymTracker necesita acceso a tu ubicación para registrar tus rutas de cardio, incluso cuando la pantalla está apagada.",
+          "locationWhenInUsePermission": "GymTracker necesita acceso a tu ubicación para registrar tus rutas de cardio.",
+          "isAndroidBackgroundLocationEnabled": true,
+          "isAndroidForegroundServiceEnabled": true
         }
       ]
     ],

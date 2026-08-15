@@ -1,10 +1,11 @@
 import React, { useState, useCallback } from 'react';
 import {
   View, Text, FlatList, TouchableOpacity, StyleSheet,
-  TextInput, StatusBar, ActivityIndicator, ScrollView,
+  TextInput, StatusBar, ActivityIndicator, ScrollView, Alert,
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
-import { getAllExercises, TRACKING_TYPES } from '../storage/exercises';
+import { getAllExercises, saveExercise, TRACKING_TYPES } from '../storage/exercises';
+import { EXERCISE_LIBRARY, LIBRARY_GROUPS } from '../constants/exerciseLibrary';
 import { useTheme } from '../theme/ThemeContext';
 
 const GYM_NAME = 'GymTracker';
@@ -12,10 +13,13 @@ const GYM_NAME = 'GymTracker';
 export default function HomeScreen({ navigation }) {
   const { colors } = useTheme();
   const s = makeStyles(colors);
+
   const [exercises, setExercises]       = useState([]);
   const [searchQuery, setSearchQuery]   = useState('');
   const [isLoading, setIsLoading]       = useState(true);
   const [activeFilter, setActiveFilter] = useState('Todos');
+  const [mainTab, setMainTab]           = useState('mis'); // 'mis' | 'biblioteca'
+  const [addingId, setAddingId]         = useState(null);
 
   useFocusEffect(useCallback(() => { loadExercises(); }, []));
 
@@ -27,9 +31,47 @@ export default function HomeScreen({ navigation }) {
     } finally { setIsLoading(false); }
   }
 
+  // Verificar si un ejercicio de la biblioteca ya fue agregado
+  function isAlreadyAdded(libEx) {
+    return exercises.some(ex =>
+      ex.name.toLowerCase() === libEx.name.toLowerCase() ||
+      ex.libraryId === libEx.id
+    );
+  }
+
+  async function handleAddFromLibrary(libEx) {
+    if (isAlreadyAdded(libEx)) {
+      Alert.alert('Ya existe', `"${libEx.name}" ya está en tus ejercicios.`);
+      return;
+    }
+    setAddingId(libEx.id);
+    try {
+      await saveExercise({
+        name:         libEx.name,
+        muscleGroup:  libEx.muscleGroup,
+        trackingType: libEx.trackingType,
+        description:  libEx.description,
+        libraryId:    libEx.id,
+      });
+      await loadExercises();
+      Alert.alert('✅ Agregado', `"${libEx.name}" se agregó a tus ejercicios.`);
+    } catch {
+      Alert.alert('Error', 'No se pudo agregar el ejercicio.');
+    } finally { setAddingId(null); }
+  }
+
   const muscleGroups = ['Todos', 'Pecho', 'Espalda', 'Piernas', 'Hombros', 'Brazos', 'Core', 'Cardio'];
 
-  const filtered = exercises.filter(ex => {
+  // Filtros para Mis Ejercicios
+  const filteredMine = exercises.filter(ex => {
+    const matchSearch = ex.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      ex.muscleGroup.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchFilter = activeFilter === 'Todos' || ex.muscleGroup === activeFilter;
+    return matchSearch && matchFilter;
+  });
+
+  // Filtros para Biblioteca
+  const filteredLib = EXERCISE_LIBRARY.filter(ex => {
     const matchSearch = ex.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       ex.muscleGroup.toLowerCase().includes(searchQuery.toLowerCase());
     const matchFilter = activeFilter === 'Todos' || ex.muscleGroup === activeFilter;
@@ -48,7 +90,7 @@ export default function HomeScreen({ navigation }) {
         <View style={s.headerTop}>
           <View style={{ flex: 1 }}>
             <Text style={s.gymName}>{GYM_NAME.toUpperCase()}</Text>
-            <Text style={s.headerTitle}>Mis Ejercicios</Text>
+            <Text style={s.headerTitle}>Ejercicios</Text>
           </View>
           <TouchableOpacity style={s.addBtn} onPress={() => navigation.navigate('AddExercise')} activeOpacity={0.8}>
             <Text style={s.addBtnText}>+</Text>
@@ -63,12 +105,24 @@ export default function HomeScreen({ navigation }) {
         </View>
       </View>
 
+      {/* Tabs principales: Mis ejercicios / Biblioteca */}
+      <View style={[s.mainTabs, { borderBottomColor: colors.border }]}>
+        {[['mis', '🏋️ Mis ejercicios'], ['biblioteca', '📚 Biblioteca']].map(([id, label]) => (
+          <TouchableOpacity key={id} onPress={() => { setMainTab(id); setSearchQuery(''); setActiveFilter('Todos'); }}
+            style={[s.mainTab, mainTab === id && { borderBottomColor: colors.brand }]}>
+            <Text style={[s.mainTabText, { color: mainTab === id ? colors.brand : colors.textSecondary }]}>
+              {label}
+            </Text>
+          </TouchableOpacity>
+        ))}
+      </View>
+
       {/* Buscador */}
       <View style={s.searchContainer}>
         <Text style={s.searchIcon}>🔍</Text>
         <TextInput
           style={s.searchInput}
-          placeholder="Buscar ejercicio..."
+          placeholder={mainTab === 'mis' ? 'Buscar ejercicio...' : 'Buscar en biblioteca...'}
           placeholderTextColor={colors.textLight}
           value={searchQuery}
           onChangeText={setSearchQuery}
@@ -80,7 +134,7 @@ export default function HomeScreen({ navigation }) {
         )}
       </View>
 
-      {/* Filtros */}
+      {/* Filtros por músculo */}
       <ScrollView horizontal showsHorizontalScrollIndicator={false}
         contentContainerStyle={s.filtersContent} style={s.filtersScroll}>
         {muscleGroups.map(group => {
@@ -97,28 +151,91 @@ export default function HomeScreen({ navigation }) {
         })}
       </ScrollView>
 
-      {/* Lista */}
-      {isLoading ? (
-        <ActivityIndicator style={s.loader} color={colors.brand} size="large" />
-      ) : (
+      {/* ── MIS EJERCICIOS ───────────────────────────────────────────────── */}
+      {mainTab === 'mis' && (
+        isLoading ? (
+          <ActivityIndicator style={s.loader} color={colors.brand} size="large" />
+        ) : (
+          <FlatList
+            data={filteredMine}
+            keyExtractor={item => item.id}
+            renderItem={({ item }) => (
+              <ExerciseRow exercise={item} colors={colors}
+                onPress={() => navigation.navigate('Detail', { exerciseId: item.id })} />
+            )}
+            ListEmptyComponent={
+              <View style={s.empty}>
+                <Text style={s.emptyIcon}>🏋️</Text>
+                <Text style={s.emptyTitle}>
+                  {searchQuery || activeFilter !== 'Todos' ? 'Sin resultados' : 'No tenés ejercicios aún'}
+                </Text>
+                <Text style={s.emptySub}>
+                  {searchQuery || activeFilter !== 'Todos'
+                    ? 'Probá con otro filtro'
+                    : 'Tocá + para crear uno o usá la pestaña Biblioteca'}
+                </Text>
+              </View>
+            }
+            contentContainerStyle={s.listContent}
+            showsVerticalScrollIndicator={false}
+          />
+        )
+      )}
+
+      {/* ── BIBLIOTECA ───────────────────────────────────────────────────── */}
+      {mainTab === 'biblioteca' && (
         <FlatList
-          data={filtered}
+          data={filteredLib}
           keyExtractor={item => item.id}
-          renderItem={({ item }) => (
-            <ExerciseRow exercise={item} colors={colors}
-              onPress={() => navigation.navigate('Detail', { exerciseId: item.id })} />
-          )}
+          renderItem={({ item }) => {
+            const added = isAlreadyAdded(item);
+            const mc    = colors.muscleColors?.[item.muscleGroup] || { bg:'rgba(232,181,0,0.15)', text:'#E8B500' };
+            return (
+              <View style={[s.libCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+                <View style={[s.libAccent, { backgroundColor: mc.bg }]}>
+                  <Text style={[s.libAccentText, { color: mc.text }]}>
+                    {item.muscleGroup.slice(0,2).toUpperCase()}
+                  </Text>
+                </View>
+                <View style={s.libContent}>
+                  <View style={{ flexDirection:'row', alignItems:'center', gap:8, marginBottom:4 }}>
+                    <Text style={[s.libName, { color: colors.textPrimary }]}>{item.name}</Text>
+                    <View style={[s.libTypeBadge, {
+                      backgroundColor: item.trackingType === 'time' ? 'rgba(96,165,250,0.15)' : 'rgba(232,181,0,0.15)'
+                    }]}>
+                      <Text style={{ fontSize:9, fontWeight:'800',
+                        color: item.trackingType === 'time' ? '#60A5FA' : colors.brand }}>
+                        {item.trackingType === 'time' ? '⏱ Tiempo' : '⚖ Peso'}
+                      </Text>
+                    </View>
+                  </View>
+                  {item.description && (
+                    <Text style={[s.libDesc, { color: colors.textSecondary }]} numberOfLines={2}>
+                      {item.description}
+                    </Text>
+                  )}
+                </View>
+                <TouchableOpacity
+                  onPress={() => handleAddFromLibrary(item)}
+                  disabled={added || addingId === item.id}
+                  style={[s.libAddBtn, {
+                    backgroundColor: added ? 'rgba(34,197,94,0.1)' : colors.brand,
+                    borderColor:     added ? '#22C55E' : colors.brand,
+                  }]}
+                >
+                  <Text style={{ fontSize:13, fontWeight:'900',
+                    color: added ? '#22C55E' : '#0A0A0A' }}>
+                    {addingId === item.id ? '...' : added ? '✓' : '+'}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            );
+          }}
           ListEmptyComponent={
             <View style={s.empty}>
-              <Text style={s.emptyIcon}>🏋️</Text>
-              <Text style={s.emptyTitle}>
-                {searchQuery || activeFilter !== 'Todos' ? 'Sin resultados' : 'No tenés ejercicios aún'}
-              </Text>
-              <Text style={s.emptySub}>
-                {searchQuery || activeFilter !== 'Todos'
-                  ? 'Probá con otro filtro'
-                  : 'Tocá + para agregar tu primer ejercicio'}
-              </Text>
+              <Text style={s.emptyIcon}>📚</Text>
+              <Text style={s.emptyTitle}>Sin resultados</Text>
+              <Text style={s.emptySub}>Probá con otro filtro o búsqueda</Text>
             </View>
           }
           contentContainerStyle={s.listContent}
@@ -234,29 +351,41 @@ const styles_row = StyleSheet.create({
 });
 
 const makeStyles = (colors) => StyleSheet.create({
-  container:          { flex: 1, backgroundColor: colors.background },
-  header:             { backgroundColor: colors.card, paddingHorizontal: 20, paddingTop: 20, paddingBottom: 16, borderBottomWidth: 0.5, borderBottomColor: colors.border },
-  headerTop:          { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 },
-  gymName:            { fontSize: 10, fontWeight: '800', color: colors.brand, letterSpacing: 2, marginBottom: 4 },
-  headerTitle:        { fontSize: 26, fontWeight: '800', color: colors.textPrimary, letterSpacing: -0.5 },
-  addBtn:             { width: 40, height: 40, borderRadius: 12, backgroundColor: colors.brand, justifyContent: 'center', alignItems: 'center', elevation: 3 },
-  addBtnText:         { fontSize: 24, fontWeight: '300', color: '#0A0A0A', lineHeight: 28 },
-  headerStats:        { flexDirection: 'row', justifyContent: 'space-around', alignItems: 'center' },
-  headerStatDivider:  { width: 0.5, height: 28, backgroundColor: colors.border },
-  searchContainer:    { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.cardAlt, marginHorizontal: 16, marginVertical: 10, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10, borderWidth: 0.5, borderColor: colors.border, gap: 8 },
-  searchIcon:         { fontSize: 15 },
-  searchInput:        { flex: 1, fontSize: 14, color: colors.textPrimary, padding: 0 },
-  clearBtn:           { fontSize: 13, color: colors.textLight, paddingHorizontal: 4 },
-  filtersScroll:      { maxHeight: 44 },
-  filtersContent:     { paddingHorizontal: 16, gap: 8, paddingVertical: 4 },
-  filterChip:         { paddingHorizontal: 16, paddingVertical: 8, borderRadius: 20, borderWidth: 1.5, borderColor: colors.border, backgroundColor: colors.card },
-  filterChipActive:   { backgroundColor: colors.brand, borderColor: colors.brand },
-  filterChipText:     { fontSize: 13, fontWeight: '600', color: colors.textSecondary },
+  container:           { flex: 1, backgroundColor: colors.background },
+  header:              { backgroundColor: colors.card, paddingHorizontal: 20, paddingTop: 20, paddingBottom: 16, borderBottomWidth: 0.5, borderBottomColor: colors.border },
+  headerTop:           { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 },
+  gymName:             { fontSize: 10, fontWeight: '800', color: colors.brand, letterSpacing: 2, marginBottom: 4 },
+  headerTitle:         { fontSize: 26, fontWeight: '800', color: colors.textPrimary, letterSpacing: -0.5 },
+  addBtn:              { width: 40, height: 40, borderRadius: 12, backgroundColor: colors.brand, justifyContent: 'center', alignItems: 'center', elevation: 3 },
+  addBtnText:          { fontSize: 24, fontWeight: '300', color: '#0A0A0A', lineHeight: 28 },
+  headerStats:         { flexDirection: 'row', justifyContent: 'space-around', alignItems: 'center' },
+  headerStatDivider:   { width: 0.5, height: 28, backgroundColor: colors.border },
+  mainTabs:            { flexDirection: 'row', borderBottomWidth: 0.5 },
+  mainTab:             { flex: 1, paddingVertical: 12, alignItems: 'center', borderBottomWidth: 2, borderBottomColor: 'transparent' },
+  mainTabText:         { fontSize: 13, fontWeight: '700' },
+  searchContainer:     { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.cardAlt, marginHorizontal: 16, marginVertical: 10, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10, borderWidth: 0.5, borderColor: colors.border, gap: 8 },
+  searchIcon:          { fontSize: 15 },
+  searchInput:         { flex: 1, fontSize: 14, color: colors.textPrimary, padding: 0 },
+  clearBtn:            { fontSize: 13, color: colors.textLight, paddingHorizontal: 4 },
+  filtersScroll:       { maxHeight: 44 },
+  filtersContent:      { paddingHorizontal: 16, gap: 8, paddingVertical: 4 },
+  filterChip:          { paddingHorizontal: 16, paddingVertical: 8, borderRadius: 20, borderWidth: 1.5, borderColor: colors.border, backgroundColor: colors.card },
+  filterChipActive:    { backgroundColor: colors.brand, borderColor: colors.brand },
+  filterChipText:      { fontSize: 13, fontWeight: '600', color: colors.textSecondary },
   filterChipTextActive:{ color: '#0A0A0A', fontWeight: '700' },
-  listContent:        { paddingHorizontal: 16, paddingTop: 10, paddingBottom: 30, flexGrow: 1 },
-  loader:             { flex: 1 },
-  empty:              { flex: 1, justifyContent: 'center', alignItems: 'center', paddingTop: 60, paddingHorizontal: 40 },
-  emptyIcon:          { fontSize: 48, marginBottom: 16 },
-  emptyTitle:         { fontSize: 18, fontWeight: '700', color: colors.textPrimary, textAlign: 'center', marginBottom: 8 },
-  emptySub:           { fontSize: 14, color: colors.textSecondary, textAlign: 'center', lineHeight: 20 },
+  listContent:         { paddingHorizontal: 16, paddingTop: 10, paddingBottom: 30, flexGrow: 1 },
+  loader:              { flex: 1 },
+  empty:               { flex: 1, justifyContent: 'center', alignItems: 'center', paddingTop: 60, paddingHorizontal: 40 },
+  emptyIcon:           { fontSize: 48, marginBottom: 16 },
+  emptyTitle:          { fontSize: 18, fontWeight: '700', color: colors.textPrimary, textAlign: 'center', marginBottom: 8 },
+  emptySub:            { fontSize: 14, color: colors.textSecondary, textAlign: 'center', lineHeight: 20 },
+  // Biblioteca
+  libCard:             { flexDirection: 'row', borderRadius: 14, marginBottom: 10, borderWidth: 0.5, overflow: 'hidden', alignItems: 'center' },
+  libAccent:           { width: 36, alignSelf: 'stretch', justifyContent: 'center', alignItems: 'center' },
+  libAccentText:       { fontSize: 11, fontWeight: '900' },
+  libContent:          { flex: 1, padding: 12 },
+  libName:             { fontSize: 14, fontWeight: '800' },
+  libTypeBadge:        { paddingHorizontal: 7, paddingVertical: 3, borderRadius: 20 },
+  libDesc:             { fontSize: 11, lineHeight: 16, marginTop: 2 },
+  libAddBtn:           { width: 36, height: 36, borderRadius: 18, justifyContent: 'center', alignItems: 'center', marginRight: 10, borderWidth: 1.5 },
 });

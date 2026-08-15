@@ -11,6 +11,7 @@ import { useTheme } from '../theme/ThemeContext';
 import { useSession } from '../context/SessionContext';
 import HamburgerMenu from '../components/HamburgerMenu';
 import Odometer from '../components/Odometer';
+import { useKeepAwake } from 'expo-keep-awake';
 
 const SAVED_RUNS_KEY      = 'gymtracker_saved_runs';
 const SAVED_CIRCUITS_KEY  = 'gymtracker_saved_circuits';
@@ -227,6 +228,7 @@ function SavedCircuitsModal({ onClose, onLoad, colors }) {
 export default function CardioScreen({ navigation }) {
   const { colors } = useTheme();
   const { logout } = useSession();
+  useKeepAwake(); // Mantiene la pantalla activa durante el cardio
   const s = makeStyles(colors);
   const mapRef = useRef(null);
 
@@ -281,8 +283,15 @@ export default function CardioScreen({ navigation }) {
     setRoute([]); setTotalDistance(0); setElapsedSeconds(0); setSplits([]);
     distanceRef.current = 0; lastSplitRef.current = 0;
     timerRef.current = setInterval(() => setElapsedSeconds(p => p + 1), 1000);
+    // Pedir permiso background para que funcione con pantalla apagada
+    await Location.requestBackgroundPermissionsAsync().catch(() => {});
     locationSub.current = await Location.watchPositionAsync(
-      { accuracy: Location.Accuracy.BestForNavigation, timeInterval: 1000, distanceInterval: 5 },
+      {
+        accuracy: Location.Accuracy.BestForNavigation,
+        timeInterval: 1000,
+        distanceInterval: 5,
+        mayShowUserSettingsDialog: true,
+      },
       (loc) => {
         const newPoint = { latitude: loc.coords.latitude, longitude: loc.coords.longitude };
         setCurrentLocation(newPoint);

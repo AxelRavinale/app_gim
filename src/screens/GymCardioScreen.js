@@ -1,6 +1,4 @@
 // src/screens/GymCardioScreen.js
-// Planes de cardio asignados por el trainer
-
 import React, { useState, useCallback } from 'react';
 import {
   View, Text, TouchableOpacity, StyleSheet,
@@ -9,6 +7,7 @@ import {
 import { useFocusEffect } from '@react-navigation/native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useTheme } from '../theme/ThemeContext';
+import { useSession } from '../context/SessionContext';
 
 const BASE_URL = 'https://gimnasio-production-7475.up.railway.app';
 
@@ -21,12 +20,12 @@ const TYPE_CFG = {
 
 export default function GymCardioScreen({ navigation }) {
   const { colors } = useTheme();
+  const { logout } = useSession() || {};
   const s = makeStyles(colors);
 
-  const [plans, setPlans]   = useState([]);
-  const [loading, setLoading] = useState(true);
-
-  const [routes, setRoutes] = useState([]);
+  const [plans, setPlans]       = useState([]);
+  const [routes, setRoutes]     = useState([]);
+  const [loading, setLoading]   = useState(true);
   const [activeTab, setActiveTab] = useState('plans');
 
   useFocusEffect(useCallback(() => { load(); }, []));
@@ -36,8 +35,8 @@ export default function GymCardioScreen({ navigation }) {
     try {
       const token = await AsyncStorage.getItem('gymtracker_access_token');
       const [plansRes, routesRes] = await Promise.all([
-        fetch(`${BASE_URL}/api/cardio/my-plans`, { headers: { 'Authorization': `Bearer ${token}` } }),
-        fetch(`${BASE_URL}/api/routes/my-routes`, { headers: { 'Authorization': `Bearer ${token}` } }),
+        fetch(`${BASE_URL}/api/cardio/my-plans`,   { headers: { 'Authorization': `Bearer ${token}` } }),
+        fetch(`${BASE_URL}/api/routes/my-routes`,  { headers: { 'Authorization': `Bearer ${token}` } }),
       ]);
       const plansData  = await plansRes.json();
       const routesData = await routesRes.json();
@@ -47,31 +46,38 @@ export default function GymCardioScreen({ navigation }) {
     finally { setLoading(false); }
   }
 
+  function handleLogout() {
+    Alert.alert('Cerrar sesión', '¿Estás seguro?', [
+      { text: 'Cancelar', style: 'cancel' },
+      { text: 'Cerrar sesión', style: 'destructive', onPress: logout },
+    ]);
+  }
+
   function handleStart(plan) {
-    // Convertir el plan al formato de CardioTimerScreen
     const exercises = (plan.exercises || []).map(ex => ({
-      id:        ex.id || String(Math.random()),
-      name:      ex.name,
-      series:    (ex.uniform !== false)
-        ? Array.from({ length: ex.series || 3 }, () => ({
-            id: String(Math.random()), duration: ex.duration || 30, rest: ex.rest || 15,
-          }))
-        : Array.from({ length: ex.series || 3 }, () => ({
-            id: String(Math.random()), duration: ex.duration || 30, rest: ex.rest || 15,
-          })),
-      restAfter: ex.rest_after || ex.restAfter || 60,
-      uniform:   ex.uniform !== false,
+      id:         ex.id || String(Math.random()),
+      name:       ex.name,
+      series:     Array.from({ length: ex.series || 3 }, () => ({
+        id: String(Math.random()), duration: ex.duration || 30, rest: ex.rest || 15,
+      })),
+      restAfter:  ex.rest_after || ex.restAfter || 60,
+      uniform:    ex.uniform !== false,
       seriesCount: ex.series || 3,
     }));
-
     navigation.navigate('CardioTimer', { exercises, planName: plan.name });
   }
 
   return (
     <View style={s.container}>
+      {/* Header con logout */}
       <View style={s.header}>
-        <Text style={s.gymName}>GYMTRACKER</Text>
-        <Text style={s.title}>Cardio del gimnasio</Text>
+        <View style={{ flex:1 }}>
+          <Text style={s.gymName}>GYMTRACKER</Text>
+          <Text style={s.title}>Cardio del gimnasio</Text>
+        </View>
+        <TouchableOpacity onPress={handleLogout} style={s.logoutBtn}>
+          <Text style={s.logoutText}>🚪 Salir</Text>
+        </TouchableOpacity>
       </View>
 
       {/* Tabs */}
@@ -84,8 +90,11 @@ export default function GymCardioScreen({ navigation }) {
               {label}
             </Text>
             {count > 0 && (
-              <View style={{ paddingHorizontal:7, paddingVertical:2, borderRadius:20, backgroundColor: activeTab===id ? 'rgba(232,181,0,0.15)' : colors.background }}>
-                <Text style={{ fontSize:11, fontWeight:'800', color: activeTab===id ? colors.brand : colors.textSecondary }}>{count}</Text>
+              <View style={{ paddingHorizontal:7, paddingVertical:2, borderRadius:20,
+                backgroundColor: activeTab===id ? 'rgba(232,181,0,0.15)' : colors.background }}>
+                <Text style={{ fontSize:11, fontWeight:'800', color: activeTab===id ? colors.brand : colors.textSecondary }}>
+                  {count}
+                </Text>
               </View>
             )}
           </TouchableOpacity>
@@ -95,14 +104,11 @@ export default function GymCardioScreen({ navigation }) {
       {loading ? (
         <ActivityIndicator style={{ flex:1 }} color={colors.brand} size="large" />
       ) : activeTab === 'routes' ? (
-        // ── RUTAS ──────────────────────────────────────────────────────────
         routes.length === 0 ? (
           <View style={s.empty}>
             <Text style={{ fontSize:52, marginBottom:16 }}>🗺️</Text>
             <Text style={[s.emptyTitle, { color:colors.textPrimary }]}>Sin rutas asignadas</Text>
-            <Text style={[s.emptySub, { color:colors.textSecondary }]}>
-              Tu entrenador todavía no te asignó ninguna ruta.
-            </Text>
+            <Text style={[s.emptySub, { color:colors.textSecondary }]}>Tu entrenador todavía no te asignó ninguna ruta.</Text>
           </View>
         ) : (
           <FlatList
@@ -111,7 +117,7 @@ export default function GymCardioScreen({ navigation }) {
             contentContainerStyle={{ padding:16, paddingBottom:30 }}
             showsVerticalScrollIndicator={false}
             renderItem={({ item }) => {
-              const distM = item.distance_m || 0;
+              const distM   = item.distance_m || 0;
               const distStr = distM >= 1000 ? `${(distM/1000).toFixed(2)} km` : `${Math.round(distM)} m`;
               return (
                 <View style={[s.card, { backgroundColor:colors.card, borderColor:colors.border }]}>
@@ -129,14 +135,9 @@ export default function GymCardioScreen({ navigation }) {
                         </View>
                       </View>
                     </View>
-                    {item.description ? (
-                      <Text style={[s.desc, { color:colors.textSecondary }]}>{item.description}</Text>
-                    ) : null}
-                    <TouchableOpacity
-                      style={[s.startBtn, { backgroundColor:'#22C55E' }]}
-                      onPress={() => navigation.navigate('RunRoute', { route: item })}
-                      activeOpacity={0.85}
-                    >
+                    {item.description ? <Text style={[s.desc, { color:colors.textSecondary }]}>{item.description}</Text> : null}
+                    <TouchableOpacity style={[s.startBtn, { backgroundColor:'#22C55E' }]}
+                      onPress={() => navigation.navigate('RunRoute', { route: item })} activeOpacity={0.85}>
                       <Text style={{ color:'#0A0A0A', fontWeight:'900', fontSize:15 }}>▶ Correr esta ruta</Text>
                     </TouchableOpacity>
                   </View>
@@ -149,9 +150,7 @@ export default function GymCardioScreen({ navigation }) {
         <View style={s.empty}>
           <Text style={{ fontSize:52, marginBottom:16 }}>🏃</Text>
           <Text style={[s.emptyTitle, { color:colors.textPrimary }]}>Sin planes asignados</Text>
-          <Text style={[s.emptySub, { color:colors.textSecondary }]}>
-            Tu entrenador todavía no te asignó ningún plan de cardio.
-          </Text>
+          <Text style={[s.emptySub, { color:colors.textSecondary }]}>Tu entrenador todavía no te asignó ningún plan de cardio.</Text>
         </View>
       ) : (
         <FlatList
@@ -161,9 +160,7 @@ export default function GymCardioScreen({ navigation }) {
           showsVerticalScrollIndicator={false}
           renderItem={({ item }) => {
             const cfg = TYPE_CFG[item.type] || TYPE_CFG.circuit;
-            const totalTime = (item.exercises||[]).reduce(
-              (a,ex) => a + (ex.series||3)*((ex.duration||30)+(ex.rest||15)), 0
-            );
+            const totalTime = (item.exercises||[]).reduce((a,ex) => a + (ex.series||3)*((ex.duration||30)+(ex.rest||15)), 0);
             return (
               <View style={[s.card, { backgroundColor:colors.card, borderColor:colors.border }]}>
                 <View style={[s.cardBar, { backgroundColor:cfg.color }]} />
@@ -183,32 +180,19 @@ export default function GymCardioScreen({ navigation }) {
                       </View>
                     </View>
                   </View>
-
-                  {item.description ? (
-                    <Text style={[s.desc, { color:colors.textSecondary }]}>{item.description}</Text>
-                  ) : null}
-
-                  {/* Lista de ejercicios */}
+                  {item.description ? <Text style={[s.desc, { color:colors.textSecondary }]}>{item.description}</Text> : null}
                   <View style={s.exList}>
                     {(item.exercises||[]).map((ex, i) => (
                       <View key={i} style={[s.exRow, { borderBottomColor:colors.border }]}>
                         <View style={[s.exDot, { backgroundColor:cfg.color }]} />
                         <Text style={[s.exName, { color:colors.textPrimary }]}>{ex.name}</Text>
-                        <Text style={[s.exMeta, { color:colors.textSecondary }]}>
-                          {ex.series}×{ex.duration}s
-                        </Text>
+                        <Text style={[s.exMeta, { color:colors.textSecondary }]}>{ex.series}×{ex.duration}s</Text>
                       </View>
                     ))}
                   </View>
-
-                  <TouchableOpacity
-                    style={[s.startBtn, { backgroundColor:cfg.color }]}
-                    onPress={() => handleStart(item)}
-                    activeOpacity={0.85}
-                  >
-                    <Text style={{ color:'#0A0A0A', fontWeight:'900', fontSize:15 }}>
-                      ▶ Comenzar {cfg.label}
-                    </Text>
+                  <TouchableOpacity style={[s.startBtn, { backgroundColor:cfg.color }]}
+                    onPress={() => handleStart(item)} activeOpacity={0.85}>
+                    <Text style={{ color:'#0A0A0A', fontWeight:'900', fontSize:15 }}>▶ Comenzar {cfg.label}</Text>
                   </TouchableOpacity>
                 </View>
               </View>
@@ -221,27 +205,28 @@ export default function GymCardioScreen({ navigation }) {
 }
 
 const makeStyles = (colors) => StyleSheet.create({
-  container: { flex:1, backgroundColor:colors.background },
-  header:    { backgroundColor:colors.card, paddingHorizontal:20, paddingTop:20, paddingBottom:16, borderBottomWidth:0.5, borderBottomColor:colors.border },
-  gymName:   { fontSize:10, fontWeight:'800', color:colors.brand, letterSpacing:2, marginBottom:4 },
-  title:     { fontSize:24, fontWeight:'900', color:colors.textPrimary, letterSpacing:-0.5 },
-  subtitle:  { fontSize:13, color:colors.textSecondary, marginTop:4 },
-  empty:     { flex:1, justifyContent:'center', alignItems:'center', padding:40 },
-  emptyTitle:{ fontSize:20, fontWeight:'800', textAlign:'center', marginBottom:8 },
-  emptySub:  { fontSize:14, textAlign:'center', lineHeight:22 },
-  card:      { borderRadius:16, marginBottom:14, borderWidth:0.5, overflow:'hidden' },
-  cardBar:   { height:4 },
+  container:  { flex:1, backgroundColor:colors.background },
+  header:     { backgroundColor:colors.card, paddingHorizontal:20, paddingTop:20, paddingBottom:16, borderBottomWidth:0.5, borderBottomColor:colors.border, flexDirection:'row', alignItems:'center' },
+  gymName:    { fontSize:10, fontWeight:'800', color:colors.brand, letterSpacing:2, marginBottom:4 },
+  title:      { fontSize:24, fontWeight:'900', color:colors.textPrimary, letterSpacing:-0.5 },
+  logoutBtn:  { paddingHorizontal:10, paddingVertical:7, borderRadius:10, backgroundColor:'rgba(239,68,68,0.1)', borderWidth:1, borderColor:'rgba(239,68,68,0.3)' },
+  logoutText: { fontSize:11, fontWeight:'800', color:'#EF4444' },
+  empty:      { flex:1, justifyContent:'center', alignItems:'center', padding:40 },
+  emptyTitle: { fontSize:20, fontWeight:'800', textAlign:'center', marginBottom:8 },
+  emptySub:   { fontSize:14, textAlign:'center', lineHeight:22 },
+  card:       { borderRadius:16, marginBottom:14, borderWidth:0.5, overflow:'hidden' },
+  cardBar:    { height:4 },
   cardContent:{ padding:16 },
-  cardHeader:{ flexDirection:'row', gap:12, marginBottom:12, alignItems:'flex-start' },
-  typeIcon:  { width:44, height:44, borderRadius:12, justifyContent:'center', alignItems:'center', flexShrink:0 },
-  planName:  { fontSize:17, fontWeight:'900', letterSpacing:-0.3 },
-  badge:     { paddingHorizontal:8, paddingVertical:3, borderRadius:20 },
-  meta:      { fontSize:11 },
-  desc:      { fontSize:13, lineHeight:19, marginBottom:12 },
-  exList:    { marginBottom:14 },
-  exRow:     { flexDirection:'row', alignItems:'center', gap:8, paddingVertical:7, borderBottomWidth:0.5 },
-  exDot:     { width:6, height:6, borderRadius:3, flexShrink:0 },
-  exName:    { flex:1, fontSize:13, fontWeight:'600' },
-  exMeta:    { fontSize:12 },
-  startBtn:  { borderRadius:12, padding:14, alignItems:'center' },
+  cardHeader: { flexDirection:'row', gap:12, marginBottom:12, alignItems:'flex-start' },
+  typeIcon:   { width:44, height:44, borderRadius:12, justifyContent:'center', alignItems:'center', flexShrink:0 },
+  planName:   { fontSize:17, fontWeight:'900', letterSpacing:-0.3 },
+  badge:      { paddingHorizontal:8, paddingVertical:3, borderRadius:20 },
+  meta:       { fontSize:11 },
+  desc:       { fontSize:13, lineHeight:19, marginBottom:12 },
+  exList:     { marginBottom:14 },
+  exRow:      { flexDirection:'row', alignItems:'center', gap:8, paddingVertical:7, borderBottomWidth:0.5 },
+  exDot:      { width:6, height:6, borderRadius:3, flexShrink:0 },
+  exName:     { flex:1, fontSize:13, fontWeight:'600' },
+  exMeta:     { fontSize:12 },
+  startBtn:   { borderRadius:12, padding:14, alignItems:'center' },
 });

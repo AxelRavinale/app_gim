@@ -5,6 +5,7 @@ import {
   TextInput, Alert, Vibration, Platform, StatusBar, Modal,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useKeepAwake } from 'expo-keep-awake';
 import { useTheme } from '../theme/ThemeContext';
 import { hablarFase, hablarCuentaRegresiva, hablarCircuitoCompleto, detenerAudio } from '../utils/audioHelper';
 
@@ -490,6 +491,7 @@ const exStyles = StyleSheet.create({
 
 // ── RunCircuit ────────────────────────────────────────────────────────────────
 function RunCircuit({ exercises, globalRest, onFinish, colors }) {
+  useKeepAwake(); // Mantiene la pantalla activa durante el circuito
   const [phase, setPhase]               = useState('countdown');
   const [countdown, setCountdown]       = useState(3);
   const [exIdx, setExIdx]               = useState(0);
